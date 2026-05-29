@@ -90,6 +90,20 @@ export default async function handler(req, res) {
     // Save OTP record with tenant_id for cross-tenant security
     await sql`INSERT INTO otp_codes (phone, code, expires_at, used, tenant_id) VALUES (${to}, ${code}, ${expires_at}, false, ${sendTenantId})`.catch(() => {});
 
+    // Resolve user type from phone number to determine correct login URL
+    let userType = null;
+    const [profileRow] = await sql`SELECT id FROM profiles WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 10) = ${clean10} LIMIT 1`.catch(() => []);
+    const [truckRow] = await sql`SELECT id FROM trucks WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 10) = ${clean10} LIMIT 1`.catch(() => []);
+    const [customerRow] = await sql`SELECT id FROM customers WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 10) = ${clean10} LIMIT 1`.catch(() => []);
+
+    if (profileRow) userType = 'admin';
+    else if (truckRow) userType = 'driver';
+    else if (customerRow) userType = 'customer';
+
+    const loginUrl = userType
+      ? `https://vitalwaveone.com/${userType === 'admin' ? 'admin' : userType === 'driver' ? 'driver' : 'order'}`
+      : 'https://vitalwaveone.com/login';
+
     // Use shared Meta credentials from environment variables
     const metaPhoneId = process.env.meta_phone_id;
     const metaToken = process.env.meta_token;
@@ -98,7 +112,7 @@ export default async function handler(req, res) {
       return res.json({ ok: false, err: 'WhatsApp not configured. Contact admin.' });
     }
 
-    // Send OTP via shared Meta account (Copy Code template)
+    // Send OTP via shared Meta account with template and dynamic button URL
     const metaRes = await fetch(
       `https://graph.facebook.com/v22.0/${metaPhoneId}/messages`,
       {
@@ -114,9 +128,13 @@ export default async function handler(req, res) {
             components: [
               {
                 type: 'body',
-                parameters: [
-                  { type: 'text', text: code },
-                ],
+                parameters: [{ type: 'text', text: code }],
+              },
+              {
+                type: 'buttons',
+                sub_type: 'url',
+                index: 0,
+                parameters: [{ type: 'text', text: loginUrl }],
               },
             ],
           },
