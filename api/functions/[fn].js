@@ -131,7 +131,7 @@ export default async function handler(req, res) {
                 parameters: [{ type: 'text', text: code }],
               },
               {
-                type: 'buttons',
+                type: 'button',
                 sub_type: 'url',
                 index: 0,
                 parameters: [{ type: 'text', text: loginUrl }],
