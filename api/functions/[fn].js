@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       return res.json({ ok: false, err: 'WhatsApp not configured. Contact admin.' });
     }
 
-    // Send OTP via shared Meta account
+    // Send OTP via shared Meta account (Copy Code template)
     const metaRes = await fetch(
       `https://graph.facebook.com/v22.0/${metaPhoneId}/messages`,
       {
@@ -106,13 +106,18 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${metaToken}` },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
-          to,
+          to: to.startsWith('+') ? to : `+${to}`,
           type: 'template',
           template: {
             name: 'login_code',
             language: { code: 'en_US' },
             components: [
-              { type: 'body', parameters: [{ type: 'text', text: code }] },
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: code },
+                ],
+              },
             ],
           },
         }),
