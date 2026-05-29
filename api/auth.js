@@ -75,8 +75,8 @@ async function handleSignup(req, res, sql) {
   }
 
   const clean = String(phone).replace(/\D/g, '').slice(-10);
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 min expiry
 
   try {
     const rows = await sql`
