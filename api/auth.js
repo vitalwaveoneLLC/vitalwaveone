@@ -145,7 +145,7 @@ async function handleVerifyAdmin(req, res, sql) {
   try {
     // Check if phone exists in profiles table as admin
     const rows = await sql`
-      SELECT id, tenant_id, name, role FROM profiles
+      SELECT id, tenant_id, full_name, role FROM profiles
       WHERE phone = ${normalized} AND role = 'admin'
       LIMIT 1
     `;
@@ -157,7 +157,7 @@ async function handleVerifyAdmin(req, res, sql) {
     return res.json({
       ok: true,
       tenant_id: rows[0].tenant_id,
-      name: rows[0].name,
+      name: rows[0].full_name,
       role: rows[0].role
     });
   } catch (e) {
