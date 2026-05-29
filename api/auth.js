@@ -142,27 +142,26 @@ async function handleVerifyAdmin(req, res, sql) {
   // Normalize phone to format stored in DB (with +)
   const normalized = phone.startsWith('+') ? phone : `+${phone}`;
 
-  const rateLimit = await checkRateLimit(`admin-check:${normalized}`, 10, 300);
-  res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
-  if (!rateLimit.allowed) {
-    return res.status(429).json({ error: 'Too many attempts. Try again later.' });
+  try {
+    // Check if phone exists in profiles table as admin
+    const rows = await sql`
+      SELECT id, tenant_id, name, role FROM profiles
+      WHERE phone = ${normalized} AND role = 'admin'
+      LIMIT 1
+    `;
+
+    if (!rows[0]) {
+      return res.status(401).json({ ok: false, error: 'This phone number is not registered as an admin.' });
+    }
+
+    return res.json({
+      ok: true,
+      tenant_id: rows[0].tenant_id,
+      name: rows[0].name,
+      role: rows[0].role
+    });
+  } catch (e) {
+    console.error('[verify-admin]', e.message);
+    return res.status(500).json({ error: 'Database error. Try again.' });
   }
-
-  // Check if phone exists in profiles table as admin
-  const rows = await sql`
-    SELECT id, tenant_id, name, role FROM profiles
-    WHERE phone = ${normalized} AND role = 'admin'
-    LIMIT 1
-  `;
-
-  if (!rows[0]) {
-    return res.status(401).json({ error: 'This phone number is not registered as an admin.' });
-  }
-
-  return res.json({
-    ok: true,
-    tenant_id: rows[0].tenant_id,
-    name: rows[0].name,
-    role: rows[0].role
-  });
 }
