@@ -152,7 +152,7 @@ export default function LoginPage({ onBack }) {
             <h2 style={{fontSize:20,fontWeight:600,letterSpacing:"-.02em",marginBottom:6}}>Check WhatsApp</h2>
             <p style={{fontSize:13,color:"#666",lineHeight:1.6}}>
               We sent a 6-digit code to<br/>
-              <strong style={{color:"#111"}}>+{sentTo}</strong>
+              <strong style={{color:"#111"}}>{sentTo}</strong>
             </p>
           </div>
 
