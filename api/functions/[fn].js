@@ -84,8 +84,11 @@ export default async function handler(req, res) {
     // Lazy cleanup: purge expired/used OTP rows older than 1 hour to keep table lean
     await sql`DELETE FROM otp_codes WHERE expires_at < now() - interval '1 hour'`.catch(() => {});
 
+    // Get tenant_id from request (required for cross-tenant security)
+    const sendTenantId = bodyTenantId || req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
+
     // Save OTP record with tenant_id for cross-tenant security
-    await sql`INSERT INTO otp_codes (phone, code, expires_at, used, tenant_id) VALUES (${to}, ${code}, ${expires_at}, false, ${tenantId})`.catch(() => {});
+    await sql`INSERT INTO otp_codes (phone, code, expires_at, used, tenant_id) VALUES (${to}, ${code}, ${expires_at}, false, ${sendTenantId})`.catch(() => {});
 
     // Use shared Meta credentials from environment variables
     const metaPhoneId = process.env.meta_phone_id;
