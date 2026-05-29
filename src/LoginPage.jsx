@@ -29,7 +29,7 @@ export default function LoginPage({ onBack }) {
     try {
       const clean = phone.replace(/\D/g,"");
       if (clean.length < 10) throw new Error("Enter a valid phone number");
-      const to = clean.length===10 ? "1"+clean : clean;
+      const to = clean.length===10 ? "+1"+clean : "+"+clean;
       const otp = genOtp();
       const expiresAt = new Date(Date.now() + 10*60*1000).toISOString();
 
