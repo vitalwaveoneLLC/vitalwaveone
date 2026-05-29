@@ -1,7 +1,7 @@
 // api/auth/verify-otp.js
 // Verify OTP code with rate limiting and proper session management
 import { neon } from '@neondatabase/serverless';
-import { checkRateLimit, resetRateLimit } from '../middleware/rate-limiter.js';
+import { checkRateLimit, resetRateLimit } from '../../lib/middleware/rate-limiter.js';
 import crypto from 'crypto';
 
 const sql = neon(process.env.DATABASE_URL);

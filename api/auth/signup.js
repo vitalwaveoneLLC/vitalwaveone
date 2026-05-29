@@ -3,7 +3,7 @@
 // After signup, admin logs in via /login using their phone + WhatsApp OTP.
 
 import { neon } from '@neondatabase/serverless';
-import { checkRateLimit } from '../middleware/rate-limiter.js';
+import { checkRateLimit } from '../../lib/middleware/rate-limiter.js';
 
 export const config = { api: { bodyParser: true } };
 

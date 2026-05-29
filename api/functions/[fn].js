@@ -1,7 +1,7 @@
 // api/functions/[fn].js — Serverless function proxy (Node.js runtime)
 import { neon } from '@neondatabase/serverless';
-import { validateSession } from '../middleware/auth.js';
-import { csrfMiddleware } from '../middleware/csrf.js';
+import { validateSession } from '../../lib/middleware/auth.js';
+import { csrfMiddleware } from '../../lib/middleware/csrf.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

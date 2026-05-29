@@ -1,7 +1,7 @@
 // api/auth/find-driver.js — Public endpoint: resolve tenant_id from driver phone
 // No auth required — used to bootstrap tenant context before driver OTP login
 import { neon } from '@neondatabase/serverless';
-import { checkRateLimit } from '../middleware/rate-limiter.js';
+import { checkRateLimit } from '../../lib/middleware/rate-limiter.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

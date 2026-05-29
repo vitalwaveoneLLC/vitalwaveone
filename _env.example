@@ -1,0 +1,30 @@
+# ============================================================
+# ROUTEFLOW SAAS — Environment Variables
+# Copy this to .env and fill in your values
+# Add ALL of these to Vercel → Project Settings → Environment Variables
+# ============================================================
+
+# ── DATABASE (Neon) ──────────────────────────────────────────
+# Get from: neon.tech → your project → Connection string
+DATABASE_URL=postgresql://username:password@ep-xxx.us-east-1.aws.neon.tech/neondb?sslmode=require
+
+# ── AUTH (Clerk) ─────────────────────────────────────────────
+# Get from: clerk.com → your app → API Keys
+CLERK_SECRET_KEY=sk_live_xxxxxxxxxxxxxxxxxxxxxxxx
+VITE_CLERK_PUBLISHABLE_KEY=pk_live_xxxxxxxxxxxxxxxxxxxxxxxx
+
+# ── STRIPE (Billing) ─────────────────────────────────────────
+# Get from: dashboard.stripe.com → Developers → API Keys
+STRIPE_SECRET_KEY=sk_live_xxxxxxxxxxxxxxxxxxxxxxxx
+STRIPE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxxxxx
+# Create these 3 products in Stripe Dashboard:
+STRIPE_PRICE_STARTER=price_xxxxxxxxxxxxxxxxxxxxxxxx   # $199/mo
+STRIPE_PRICE_STANDARD=price_xxxxxxxxxxxxxxxxxxxxxxxx  # $499/mo
+STRIPE_PRICE_PREMIUM=price_xxxxxxxxxxxxxxxxxxxxxxxx   # $899/mo
+
+# ── APP ──────────────────────────────────────────────────────
+APP_URL=https://routeflow-jade.vercel.app
+
+# ── LEGACY (Supabase — keep until full migration complete) ───
+VITE_SUPABASE_URL=https://xxxx.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_key

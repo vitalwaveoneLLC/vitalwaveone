@@ -1,7 +1,7 @@
 // api/auth/verify-admin.js
 // Verifies phone belongs to an admin in the company table
 import { neon } from '@neondatabase/serverless';
-import { checkRateLimit } from '../middleware/rate-limiter.js';
+import { checkRateLimit } from '../../lib/middleware/rate-limiter.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

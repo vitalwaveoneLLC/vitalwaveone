@@ -4,9 +4,9 @@
 // Runs as a Vercel Edge Function so req.text() / req.json() (Web API) work correctly.
 export const config = { runtime: 'edge' };
 
-import { sql, getTenant, ok, err, cors } from '../db/client.js';
-import { validateSession } from '../middleware/auth.js';
-import { csrfMiddleware } from '../middleware/csrf.js';
+import { sql, getTenant, ok, err, cors } from '../../lib/db/client.js';
+import { validateSession } from '../../lib/middleware/auth.js';
+import { csrfMiddleware } from '../../lib/middleware/csrf.js';
 
 
 

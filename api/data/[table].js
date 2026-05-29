@@ -1,8 +1,8 @@
 // api/data/[table].js — Universal CRUD API (Node.js runtime)
 import { neon } from '@neondatabase/serverless';
-import { getTenant, requirePlan } from '../db/client.js';
-import { validateSession } from '../middleware/auth.js';
-import { csrfMiddleware } from '../middleware/csrf.js';
+import { getTenant, requirePlan } from '../../lib/db/client.js';
+import { validateSession } from '../../lib/middleware/auth.js';
+import { csrfMiddleware } from '../../lib/middleware/csrf.js';
 
 const ALLOWED_TABLES = [
   'sales','customers','products','trucks','loads','payments',

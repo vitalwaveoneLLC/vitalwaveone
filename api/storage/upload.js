@@ -1,7 +1,7 @@
 // api/storage/upload.js — File upload to Cloudflare R2 (AWS Sig V4 compatible)
-import { getTenant, ok, err, cors } from '../db/client.js';
-import { validateSession } from '../middleware/auth.js';
-import { csrfMiddleware } from '../middleware/csrf.js';
+import { getTenant, ok, err, cors } from '../../lib/db/client.js';
+import { validateSession } from '../../lib/middleware/auth.js';
+import { csrfMiddleware } from '../../lib/middleware/csrf.js';
 import { createHmac, createHash } from 'crypto';
 
 // ── AWS Sig V4 signing helpers ─────────────────────────────────────────────
