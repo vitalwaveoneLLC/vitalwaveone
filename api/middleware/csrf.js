@@ -1,15 +1,24 @@
 // api/middleware/csrf.js
 // CSRF token generation and validation
-import crypto from 'crypto';
+// Uses Web Crypto API (compatible with Edge Functions)
 import { neon } from '@neondatabase/serverless';
 
 const sql = neon(process.env.DATABASE_URL);
 
 /**
+ * Generate random token using Web Crypto API
+ */
+function generateRandomToken(bytes = 32) {
+  const arr = new Uint8Array(bytes);
+  crypto.getRandomValues(arr);
+  return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * Generate CSRF token for a session
  */
 export async function generateCSRFToken(sessionId) {
-  const token = crypto.randomBytes(32).toString('hex');
+  const token = generateRandomToken(32);
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
   try {
