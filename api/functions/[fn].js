@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       return res.json({ ok: false, err: 'WhatsApp not configured. Contact admin.' });
     }
 
-    // Send OTP via shared Meta account as text message (template button parameter limit too restrictive for URLs)
+    // Send OTP via shared Meta account using otp_login template
     const metaRes = await fetch(
       `https://graph.facebook.com/v22.0/${metaPhoneId}/messages`,
       {
@@ -107,9 +107,16 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           to: to.startsWith('+') ? to : `+${to}`,
-          type: 'text',
-          text: {
-            body: `Your VitalWaveOne login code is: ${code}\n\nGo to https://vitalwaveone.com to continue.`,
+          type: 'template',
+          template: {
+            name: 'otp_login',
+            language: { code: 'en_US' },
+            components: [
+              {
+                type: 'body',
+                parameters: [{ type: 'text', text: code }],
+              },
+            ],
           },
         }),
       }
