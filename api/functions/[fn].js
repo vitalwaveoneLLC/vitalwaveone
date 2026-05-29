@@ -49,9 +49,14 @@ export default async function handler(req, res) {
     // ── Verify path ────────────────────────────────────────────────────
     if (action === 'verify') {
       if (!to || !code) return res.json({ ok: false, err: 'Phone and code required.' });
+
+      // Get tenant_id from request
+      const verifyTenantId = body.tenant_id || req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
+
       const [row] = await sql`
         SELECT * FROM otp_codes
         WHERE phone = ${to} AND code = ${code}
+          AND tenant_id = ${verifyTenantId}
           AND used = false AND expires_at > now()
         ORDER BY created_at DESC LIMIT 1
       `;
@@ -79,54 +84,23 @@ export default async function handler(req, res) {
     // Lazy cleanup: purge expired/used OTP rows older than 1 hour to keep table lean
     await sql`DELETE FROM otp_codes WHERE expires_at < now() - interval '1 hour'`.catch(() => {});
 
-    // Save OTP record
-    await sql`INSERT INTO otp_codes (phone, code, expires_at, used) VALUES (${to}, ${code}, ${expires_at}, false)`;
+    // Save OTP record with tenant_id for cross-tenant security
+    await sql`INSERT INTO otp_codes (phone, code, expires_at, used, tenant_id) VALUES (${to}, ${code}, ${expires_at}, false, ${tenantId})`.catch(() => {});
 
-    // Resolve this tenant's Meta credentials by matching phone across all user tables.
-    // Priority: explicit tenant_id in body > profiles > trucks > customers
-    // This ensures each tenant's OTPs are sent via their OWN Meta account.
-    let co = null;
-    const tenantId = bodyTenantId
-      || req.headers['x-tenant-id']
-      || req.headers['X-Tenant-ID'];
+    // Use shared Meta credentials from environment variables
+    const metaPhoneId = process.env.meta_phone_id;
+    const metaToken = process.env.meta_token;
 
-    if (tenantId) {
-      const [row] = await sql`SELECT meta_phone_id, meta_token FROM company WHERE tenant_id = ${tenantId} LIMIT 1`;
-      co = row;
+    if (!metaPhoneId || !metaToken) {
+      return res.json({ ok: false, err: 'WhatsApp not configured. Contact admin.' });
     }
 
-    if (!co) {
-      // Resolve tenant from phone number — works for admin, driver, and customer logins
-      const [matched] = await sql`
-        WITH phone_match AS (
-          SELECT tenant_id FROM profiles
-            WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 10) = ${clean10}
-          UNION ALL
-          SELECT tenant_id FROM trucks
-            WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 10) = ${clean10}
-          UNION ALL
-          SELECT tenant_id FROM customers
-            WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '', 'g'), 10) = ${clean10}
-          LIMIT 1
-        )
-        SELECT c.meta_phone_id, c.meta_token
-        FROM company c
-        JOIN phone_match m ON m.tenant_id = c.tenant_id
-        LIMIT 1
-      `;
-      co = matched;
-    }
-
-    if (!co?.meta_phone_id || !co?.meta_token) {
-      return res.json({ ok: false, err: 'WhatsApp not configured for this account. Contact your admin.' });
-    }
-
-    // Send OTP via this tenant's own Meta Cloud API account
+    // Send OTP via shared Meta account
     const metaRes = await fetch(
-      `https://graph.facebook.com/v22.0/${co.meta_phone_id}/messages`,
+      `https://graph.facebook.com/v22.0/${metaPhoneId}/messages`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${co.meta_token}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${metaToken}` },
         body: JSON.stringify({
           messaging_product: 'whatsapp',
           to,
