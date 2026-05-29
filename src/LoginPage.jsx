@@ -47,7 +47,7 @@ export default function LoginPage({ onBack }) {
         setError(`⚠️ WhatsApp failed. Use test code: ${data.code}`);
       }
 
-      setSentTo(to);
+      setSentTo(to.startsWith('+') ? to : `+${to}`);
       setStage("code");
     } catch(e){ setError(e.message); }
     setLoading(false);
