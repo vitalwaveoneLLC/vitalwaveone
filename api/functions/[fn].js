@@ -50,13 +50,10 @@ export default async function handler(req, res) {
     if (action === 'verify') {
       if (!to || !code) return res.json({ ok: false, err: 'Phone and code required.' });
 
-      // Get tenant_id from request
-      const verifyTenantId = body.tenant_id || req.headers['x-tenant-id'] || req.headers['X-Tenant-ID'];
-
+      // Verify OTP (don't require tenant_id for login flow - it may be null)
       const [row] = await sql`
         SELECT * FROM otp_codes
         WHERE phone = ${to} AND code = ${code}
-          AND tenant_id = ${verifyTenantId}
           AND used = false AND expires_at > now()
         ORDER BY created_at DESC LIMIT 1
       `;
