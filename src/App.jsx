@@ -4,6 +4,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { db } from "./db";
 import StripePaymentModal from "./StripePaymentModal.jsx";
+import LoginPage from "./LoginPage.jsx";
 
 // ───────────────────────────────────────────────────────────────────────────
 // GLOBAL STYLES & THEMES
@@ -104,9 +105,14 @@ export default function App() {
   const [toastType, setToastType] = useState("info");
   const [stripeModal, setStripeModal] = useState(null);
 
-  // ─ Load data on mount
+  // ─ Check auth on mount
   useEffect(() => {
-    loadData();
+    const adminStored = localStorage.getItem('vitalwaveone_admin');
+    if (adminStored && JSON.parse(adminStored).expires > Date.now()) {
+      loadData();
+    } else {
+      setLoading(false); // Not logged in
+    }
   }, []);
 
   // ─ Toast helper
@@ -145,6 +151,15 @@ export default function App() {
     money: (v) => typeof v === "number" ? `$${v.toFixed(2)}` : "-",
     date: (d) => d ? new Date(d).toLocaleDateString() : "-",
   };
+
+  // Check if authenticated
+  const adminStored = typeof window !== 'undefined' ? localStorage.getItem('vitalwaveone_admin') : null;
+  const isAuthenticated = adminStored && JSON.parse(adminStored).expires > Date.now();
+
+  // Show login if not authenticated
+  if (!isAuthenticated && !loading) {
+    return <LoginPage onBack={() => {}} />;
+  }
 
   return (
     <div className="app">

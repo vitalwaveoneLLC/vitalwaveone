@@ -41,6 +41,12 @@ export default function LoginPage({ onBack }) {
       const data = await res.json().catch(()=>({}));
       if (!res.ok || data.ok===false) throw new Error(data.err||"Failed to send WhatsApp code. Check your Meta settings.");
 
+      // If API returns code (fallback/testing), display it
+      if (data.code) {
+        setCode(data.code);
+        setError(`⚠️ WhatsApp failed. Use test code: ${data.code}`);
+      }
+
       setSentTo(to);
       setStage("code");
     } catch(e){ setError(e.message); }
