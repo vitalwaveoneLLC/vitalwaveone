@@ -68,7 +68,7 @@ export default function LoginPage({ onBack }) {
       if (!res.ok || !data.ok) throw new Error(data.err||"Invalid or expired code. Request a new one.");
 
       // Verify this phone belongs to an admin profile
-      const profileRes = await fetch(`/api/auth/verify-admin`,{
+      const profileRes = await fetch(`/api/auth?action=verify-admin`,{
         method:"POST",
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({ phone: sentTo }),

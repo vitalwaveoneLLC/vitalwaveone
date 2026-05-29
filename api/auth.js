@@ -136,35 +136,33 @@ async function handleVerifyOtp(req, res, sql) {
 }
 
 async function handleVerifyAdmin(req, res, sql) {
-  const { phone, otp } = req.body || {};
-  if (!phone || !otp) return res.status(400).json({ error: 'Phone and OTP required' });
+  const { phone } = req.body || {};
+  if (!phone) return res.status(400).json({ error: 'Phone required' });
 
-  const clean = String(phone).replace(/\D/g, '').slice(-10);
+  // Normalize phone to format stored in DB (with +)
+  const normalized = phone.startsWith('+') ? phone : `+${phone}`;
 
-  const rateLimit = await checkRateLimit(`admin:${clean}`, 5, 900);
+  const rateLimit = await checkRateLimit(`admin-check:${normalized}`, 10, 300);
   res.setHeader('X-RateLimit-Remaining', rateLimit.remaining);
   if (!rateLimit.allowed) {
     return res.status(429).json({ error: 'Too many attempts. Try again later.' });
   }
 
+  // Check if phone exists in profiles table as admin
   const rows = await sql`
-    SELECT id, tenant_id, expires_at FROM otp_sessions
-    WHERE phone = ${clean} AND otp = ${otp} AND role = 'admin'
+    SELECT id, tenant_id, name, role FROM profiles
+    WHERE phone = ${normalized} AND role = 'admin'
     LIMIT 1
   `;
 
   if (!rows[0]) {
-    return res.status(401).json({ error: 'Invalid OTP or not an admin' });
+    return res.status(401).json({ error: 'This phone number is not registered as an admin.' });
   }
 
-  if (new Date(rows[0].expires_at) < new Date()) {
-    return res.status(401).json({ error: 'OTP expired' });
-  }
-
-  await sql`DELETE FROM otp_sessions WHERE id = ${rows[0].id}`;
-  await resetRateLimit(`admin:${clean}`);
-
-  const token = Buffer.from(JSON.stringify({ phone: clean, role: 'admin', tenant_id: rows[0].tenant_id, iat: Date.now() })).toString('base64');
-
-  return res.json({ ok: true, token, tenant_id: rows[0].tenant_id });
+  return res.json({
+    ok: true,
+    tenant_id: rows[0].tenant_id,
+    name: rows[0].name,
+    role: rows[0].role
+  });
 }
