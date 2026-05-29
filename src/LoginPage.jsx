@@ -41,11 +41,10 @@ export default function LoginPage({ onBack }) {
       const data = await res.json().catch(()=>({}));
       if (!res.ok || data.ok===false) throw new Error(data.err||"Failed to send WhatsApp code. Check your Meta settings.");
 
-      // If API returns code (fallback/testing), display it
-      if (data.code) {
-        setCode(data.code);
-        setError(`⚠️ WhatsApp failed. Use test code: ${data.code}`);
-      }
+      // Always display test code for testing purposes
+      const testCode = data.code || otp; // Show returned code or generated OTP
+      setCode(testCode);
+      setError(`🧪 TEST CODE: ${testCode} (click to copy)`);
 
       setSentTo(to.startsWith('+') ? to : `+${to}`);
       setStage("code");
