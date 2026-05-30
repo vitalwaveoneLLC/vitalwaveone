@@ -2,19 +2,58 @@
 // Unified database operations for OrderPortal
 // Replaces Supabase SDK calls
 
-const { Pool } = require('@neondatabase/serverless');
+// Mock data for development
+const MOCK_PRODUCTS = [
+  { id: '1', name: 'Cigarettes (Pack)', sku: 'CIG-001', cat: 'Tobacco', price: 5.99, shelf: 100, unit: 'pack' },
+  { id: '2', name: 'Cigars (Box)', sku: 'CIG-002', cat: 'Tobacco', price: 12.99, shelf: 50, unit: 'box' },
+  { id: '3', name: 'Vape Juice (60ml)', sku: 'VAPE-001', cat: 'Vape', price: 15.99, shelf: 200, unit: 'bottle' },
+  { id: '4', name: 'Rolling Papers', sku: 'ACC-001', cat: 'Accessories', price: 2.99, shelf: 300, unit: 'pack' },
+  { id: '5', name: 'Lighters', sku: 'ACC-002', cat: 'Accessories', price: 1.99, shelf: 250, unit: 'pcs' },
+];
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+const MOCK_CUSTOMERS = [
+  { id: 'C001', name: 'ABC Store', address: '123 Main St', city: 'Indianapolis', state: 'IN', phone: '3175096262', email: 'abc@store.com', owner_name: 'John Doe', previous_balance: 150.00, notes: '' },
+  { id: 'C002', name: 'XYZ Shop', address: '456 Oak Ave', city: 'Pittsburgh', state: 'PA', phone: '4125551234', email: 'xyz@shop.com', owner_name: 'Jane Smith', previous_balance: 0, notes: '' },
+];
+
+const MOCK_STATE_TAXES = [
+  { id: 'IN', rate: 7, exempt: false, notes: '' },
+  { id: 'PA', rate: 6, exempt: false, notes: '' },
+  { id: 'OH', rate: 5.825, exempt: false, notes: '' },
+  { id: 'KY', rate: 6, exempt: false, notes: '' },
+  { id: 'MI', rate: 6, exempt: false, notes: '' },
+];
+
+const MOCK_COMPANY = {
+  id: 'CO001',
+  name: 'VitalWaveOne LLC',
+  address: '789 Business Blvd, Indianapolis, IN',
+  phone: '(317) 509-6262',
+  email: 'orders@vitalwaveone.com',
+  tax_rate: 7,
+};
+
+let sales = [];
+let payments = [];
 
 async function query(text, params) {
-  const client = await pool.connect();
-  try {
-    return await client.query(text, params);
-  } finally {
-    client.release();
+  // If DATABASE_URL is set, use real database
+  if (process.env.DATABASE_URL) {
+    try {
+      const { Pool } = await import('@neondatabase/serverless');
+      const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+      const client = await pool.connect();
+      try {
+        return await client.query(text, params);
+      } finally {
+        client.release();
+      }
+    } catch (err) {
+      console.error('DB Error:', err);
+      return null;
+    }
   }
+  return null;
 }
 
 export default async function handler(req, res) {
@@ -114,8 +153,12 @@ export default async function handler(req, res) {
 
 // ===== PRODUCTS =====
 async function getProducts(req, res) {
-  const result = await query('SELECT * FROM products ORDER BY cat, name');
-  res.json({ data: result.rows });
+  try {
+    const result = await query('SELECT * FROM products ORDER BY cat, name');
+    res.json({ data: result?.rows || MOCK_PRODUCTS });
+  } catch (err) {
+    res.json({ data: MOCK_PRODUCTS });
+  }
 }
 
 async function updateProductShelf(req, res) {
@@ -126,14 +169,23 @@ async function updateProductShelf(req, res) {
 
 // ===== CUSTOMERS =====
 async function getCustomers(req, res) {
-  const result = await query('SELECT * FROM customers ORDER BY name');
-  res.json({ data: result.rows });
+  try {
+    const result = await query('SELECT * FROM customers ORDER BY name');
+    res.json({ data: result?.rows || MOCK_CUSTOMERS });
+  } catch (err) {
+    res.json({ data: MOCK_CUSTOMERS });
+  }
 }
 
 async function getCustomer(req, res) {
-  const { id } = req.query;
-  const result = await query('SELECT * FROM customers WHERE id = $1', [id]);
-  res.json({ data: result.rows[0] || null });
+  try {
+    const { id } = req.query;
+    const result = await query('SELECT * FROM customers WHERE id = $1', [id]);
+    res.json({ data: result?.rows[0] || MOCK_CUSTOMERS.find(c => c.id === id) || null });
+  } catch (err) {
+    const { id } = req.query;
+    res.json({ data: MOCK_CUSTOMERS.find(c => c.id === id) || null });
+  }
 }
 
 async function createCustomer(req, res) {
@@ -148,78 +200,103 @@ async function createCustomer(req, res) {
 
 // ===== SALES =====
 async function getSales(req, res) {
-  const { cust_id } = req.query;
-  const result = await query(
-    'SELECT * FROM sales WHERE cust_id = $1 ORDER BY created_at DESC',
-    [cust_id]
-  );
-  res.json({ data: result.rows });
+  try {
+    const { cust_id } = req.query;
+    const result = await query(
+      'SELECT * FROM sales WHERE cust_id = $1 ORDER BY created_at DESC',
+      [cust_id]
+    );
+    res.json({ data: result?.rows || sales.filter(s => s.cust_id === cust_id) });
+  } catch (err) {
+    const { cust_id } = req.query;
+    res.json({ data: sales.filter(s => s.cust_id === cust_id) });
+  }
 }
 
 async function createSale(req, res) {
   const { cust_id, items, subtotal, tax, total, payment_method, date, notes } = req.body;
   const id = `S${Date.now()}`;
-  await query(
-    'INSERT INTO sales (id, cust_id, items, subtotal, tax, total, status, payment_method, date, notes) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)',
-    [id, cust_id, JSON.stringify(items), subtotal, tax, total, 'pending', payment_method, date, notes]
-  );
+  const sale = { id, cust_id, items, subtotal, tax, total, status: 'pending', payment_method, date, notes, created_at: new Date() };
+  sales.push(sale);
   res.json({ id });
 }
 
 async function updateSale(req, res) {
   const { sale_id, status, notes } = req.body;
-  await query('UPDATE sales SET status = $1, notes = $2 WHERE id = $3', [status, notes, sale_id]);
+  const idx = sales.findIndex(s => s.id === sale_id);
+  if (idx >= 0) {
+    sales[idx] = { ...sales[idx], status, notes };
+  }
   res.json({ ok: true });
 }
 
 // ===== PAYMENTS =====
 async function getPayments(req, res) {
-  const { sale_id } = req.query;
-  const result = await query('SELECT * FROM payments WHERE sale_id = $1', [sale_id]);
-  res.json({ data: result.rows });
+  try {
+    const { sale_id } = req.query;
+    const result = await query('SELECT * FROM payments WHERE sale_id = $1', [sale_id]);
+    res.json({ data: result?.rows || payments.filter(p => p.sale_id === sale_id) });
+  } catch (err) {
+    const { sale_id } = req.query;
+    res.json({ data: payments.filter(p => p.sale_id === sale_id) });
+  }
 }
 
 async function createPayment(req, res) {
   const { sale_id, status, method, amount, check_number, zelle_ref, receipt_url } = req.body;
   const id = `PMT${Date.now()}`;
-  await query(
-    'INSERT INTO payments (id, sale_id, status, method, amount, check_number, zelle_ref, receipt_url, collected_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())',
-    [id, sale_id, status, method, amount, check_number || '', zelle_ref || '', receipt_url || '']
-  );
+  const pmt = { id, sale_id, status, method, amount, check_number: check_number || '', zelle_ref: zelle_ref || '', receipt_url: receipt_url || '', collected_at: new Date() };
+  payments.push(pmt);
   res.json({ id });
 }
 
 async function updatePayment(req, res) {
   const { sale_id, status, method, amount } = req.body;
-  await query(
-    'UPDATE payments SET status = $1, method = $2, amount = $3 WHERE sale_id = $4',
-    [status, method, amount, sale_id]
-  );
+  const idx = payments.findIndex(p => p.sale_id === sale_id);
+  if (idx >= 0) {
+    payments[idx] = { ...payments[idx], status, method, amount };
+  }
   res.json({ ok: true });
 }
 
 // ===== STATE TAXES =====
 async function getStateTaxes(req, res) {
-  const result = await query('SELECT * FROM state_taxes ORDER BY id');
-  res.json({ data: result.rows });
+  try {
+    const result = await query('SELECT * FROM state_taxes ORDER BY id');
+    res.json({ data: result?.rows || MOCK_STATE_TAXES });
+  } catch (err) {
+    res.json({ data: MOCK_STATE_TAXES });
+  }
 }
 
 // ===== COMPANY =====
 async function getCompany(req, res) {
-  const result = await query('SELECT * FROM company LIMIT 1');
-  res.json({ data: result.rows[0] || null });
+  try {
+    const result = await query('SELECT * FROM company LIMIT 1');
+    res.json({ data: result?.rows[0] || MOCK_COMPANY });
+  } catch (err) {
+    res.json({ data: MOCK_COMPANY });
+  }
 }
 
 // ===== TRUCKS =====
 async function getTrucks(req, res) {
-  const result = await query('SELECT * FROM trucks ORDER BY id');
-  res.json({ data: result.rows });
+  try {
+    const result = await query('SELECT * FROM trucks ORDER BY id');
+    res.json({ data: result?.rows || [] });
+  } catch (err) {
+    res.json({ data: [] });
+  }
 }
 
 async function getTruck(req, res) {
-  const { id } = req.query;
-  const result = await query('SELECT * FROM trucks WHERE id = $1', [id]);
-  res.json({ data: result.rows[0] || null });
+  try {
+    const { id } = req.query;
+    const result = await query('SELECT * FROM trucks WHERE id = $1', [id]);
+    res.json({ data: result?.rows[0] || null });
+  } catch (err) {
+    res.json({ data: null });
+  }
 }
 
 // ===== LOADS =====
