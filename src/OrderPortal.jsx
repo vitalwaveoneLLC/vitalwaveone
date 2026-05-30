@@ -66,16 +66,23 @@ const SAMPLE_DRIVERS = [
 ];
 
 export default function OrderPortal() {
-  const [view, setView] = useState('role-select'); // role-select | customer-login | register | catalog | cart | invoice | account | driver-home | driver-route | walk-in
+  const [view, setView] = useState('role-select');
   const [customerData, setCustomerData] = useState(null);
   const [driverData, setDriverData] = useState(null);
   const [cart, setCart] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [phone, setPhone] = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(false);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+
+  const ToastNotification = () => toast ? (
+    <div style={{ position: 'fixed', top: 20, right: 20, background: '#667eea', color: 'white', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 9999, animation: 'slideIn 0.3s ease', boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)' }}>
+      {toast}
+    </div>
+  ) : null;
 
   // ========================================================================
   // CUSTOMER LOGIN & REGISTRATION
@@ -170,13 +177,14 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px', fontFamily: "'Inter', sans-serif" }}>
         <GlobalStyles />
+        <ToastNotification />
         <div className="card" style={{ maxWidth: 450, margin: '80px auto', textAlign: 'center' }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>🛒 VitalWave Order</h1>
           <p style={{ color: '#94a3b8', marginBottom: 32 }}>What brings you here today?</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button className="btn btn-primary" onClick={() => setView('customer-login')} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>👥 Registered Customer</button>
+            <button className="btn btn-primary" onClick={() => { setPhone(''); setView('customer-login'); }} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>👥 Registered Customer</button>
             <button className="btn btn-primary" onClick={handleWalkInStart} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>🚶 Walk-in Order</button>
-            <button className="btn btn-primary" onClick={() => setView('driver-login')} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>🚚 Driver Route</button>
+            <button className="btn btn-primary" onClick={() => { setDriverPhone(''); setView('driver-login'); }} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>🚚 Driver Route</button>
           </div>
         </div>
       </div>
@@ -191,6 +199,7 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>📱 Customer Login</h1>
           <form onSubmit={handleCustomerLogin}>
@@ -214,6 +223,7 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <div>
@@ -249,6 +259,7 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div className="card" style={{ maxWidth: 700, margin: '0 auto' }}>
           <button className="btn" onClick={() => setView('catalog')} style={{ marginBottom: 16 }}>← Catalog</button>
 
@@ -313,6 +324,7 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div className="card fade-in" style={{ maxWidth: 700, margin: '0 auto' }}>
           <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: 24, borderRadius: '16px 16px 0 0', marginLeft: -24, marginRight: -24, marginTop: -24, marginBottom: 24, color: '#fff' }}>
             <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>📄 Proforma Invoice</h1>
@@ -389,6 +401,7 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <h1 style={{ fontSize: 24, fontWeight: 700 }}>📊 My Account</h1>
@@ -451,11 +464,10 @@ export default function OrderPortal() {
   // ========================================================================
 
   if (view === 'driver-login') {
-    const [driverPhone, setDriverPhone] = useState('');
-
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
           <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>🚚 Driver Login</h1>
           <form onSubmit={(e) => { e.preventDefault(); const driver = SAMPLE_DRIVERS.find(d => d.phone.includes(driverPhone.replace(/\D/g, ''))); if (driver) { setDriverData(driver); setView('driver-home'); } }}>
@@ -473,6 +485,7 @@ export default function OrderPortal() {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
         <GlobalStyles />
+        <ToastNotification />
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <h1 style={{ fontSize: 24, fontWeight: 700 }}>🚚 Driver Dashboard</h1>
