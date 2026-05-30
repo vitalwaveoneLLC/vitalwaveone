@@ -228,7 +228,7 @@ export default function OrderPortal() {
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
         ]).catch(() => ({ data: mockCustomers }));
 
-        const customers = custRes?.data || mockCustomers;
+        const customers = (custRes?.data && custRes.data.length > 0) ? custRes.data : mockCustomers;
         // Match by cleaning both sides
         const found = customers.find(c => {
           const custClean = String(c.phone || '').replace(/\D/g, '');
@@ -246,6 +246,7 @@ export default function OrderPortal() {
         }
       } catch (fetchErr) {
         // Fallback to mock if API fails
+        console.error('API fetch error:', fetchErr);
         const found = mockCustomers.find(c => {
           const custClean = String(c.phone || '').replace(/\D/g, '');
           return custClean === clean || c.phone === clean || c.phone.includes(clean);
