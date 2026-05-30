@@ -153,12 +153,20 @@ export default async function handler(req, res) {
 
 // ===== PRODUCTS =====
 async function getProducts(req, res) {
-  try {
-    const result = await query('SELECT * FROM products ORDER BY cat, name');
-    res.json({ data: result?.rows || MOCK_PRODUCTS });
-  } catch (err) {
-    res.json({ data: MOCK_PRODUCTS });
+  res.setHeader('Content-Type', 'application/json');
+
+  if (process.env.DATABASE_URL) {
+    try {
+      const result = await query('SELECT * FROM products ORDER BY cat, name');
+      if (result?.rows && result.rows.length > 0) {
+        return res.json({ data: result.rows });
+      }
+    } catch (err) {
+      console.error('DB query error:', err);
+    }
   }
+
+  return res.json({ data: MOCK_PRODUCTS });
 }
 
 async function updateProductShelf(req, res) {
@@ -169,12 +177,22 @@ async function updateProductShelf(req, res) {
 
 // ===== CUSTOMERS =====
 async function getCustomers(req, res) {
-  try {
-    const result = await query('SELECT * FROM customers ORDER BY name');
-    res.json({ data: result?.rows || MOCK_CUSTOMERS });
-  } catch (err) {
-    res.json({ data: MOCK_CUSTOMERS });
+  res.setHeader('Content-Type', 'application/json');
+
+  // If DATABASE_URL is set, try to query database
+  if (process.env.DATABASE_URL) {
+    try {
+      const result = await query('SELECT * FROM customers ORDER BY name');
+      if (result?.rows && result.rows.length > 0) {
+        return res.json({ data: result.rows });
+      }
+    } catch (err) {
+      console.error('DB query error:', err);
+    }
   }
+
+  // Default to mock data
+  return res.json({ data: MOCK_CUSTOMERS });
 }
 
 async function getCustomer(req, res) {
