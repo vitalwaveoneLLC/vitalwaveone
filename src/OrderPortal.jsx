@@ -1,249 +1,353 @@
-// OrderPortal.jsx - Full-Featured B2B Order Management System
-// Includes: Customer registration + catalog + ordering + AR tracking + Driver app + Walk-in support
+// VitalWaveOne LLC - Customer Order Portal v2
+// Migrated from Supabase to Neon PostgreSQL + Vercel Functions
+// Includes: Customer registration, catalog, cart, invoices, Driver app, Walk-in support
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 
-const GlobalStyles = () => (
+// ============================================================================
+// STYLES
+// ============================================================================
+
+const GS = () => (
   <>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
     <style>{`
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); font-family: 'Inter', sans-serif; color: #1a202c; }
-      .card { background: rgba(255,255,255,0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.5); border-radius: 16px; padding: 24px; box-shadow: 0 8px 32px rgba(31,38,135,0.08); }
-      .btn { cursor: pointer; border: none; font-family: 'Inter'; font-weight: 600; font-size: 13px; padding: 10px 16px; border-radius: 10px; background: #f0f4f8; color: #475569; border: 1px solid #e2e8f0; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
-      .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; }
-      .btn-success { background: #10b981; color: white; border: none; }
-      input, select { background: #f8fafc; border: 1px solid #e2e8f0; color: #1a202c; border-radius: 10px; padding: 10px 14px; font-family: 'Inter'; font-size: 13px; width: 100%; outline: none; }
-      input:focus, select:focus { border-color: #667eea; background: white; }
-      label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; display: block; margin-bottom: 6px; }
-      table { width: 100%; border-collapse: collapse; }
-      th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 700; color: #64748b; border-bottom: 2px solid #e2e8f0; background: #f8fafc; text-transform: uppercase; }
-      td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid #e2e8f0; color: #334155; }
-      .tag { display: inline-flex; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-      .tag-success { background: #d1fae5; color: #065f46; }
-      .tag-warning { background: #fef3c7; color: #854d0e; }
-      .tag-danger { background: #fee2e2; color: #991b1b; }
-      .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      .grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; }
-      @keyframes slideIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-      .fade-in { animation: slideIn 0.3s ease forwards; }
+      *{box-sizing:border-box;margin:0;padding:0;}
+      body{background:#f8f5f0;font-family:'Inter',sans-serif;}
+      .portal{min-height:100vh;background:#f8f5f0;padding:20px;}
+      input,select,textarea{font-family:'Inter',sans-serif;transition:all .15s;border:1.5px solid #e5e7eb;border-radius:9px;padding:11px 14px;font-size:14px;}
+      input:focus,select:focus,textarea:focus{outline:none;border-color:#0a1628;box-shadow:0 0 0 3px #0a162814;}
+      .card{background:#fff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 2px 16px #00000008;padding:24px;}
+      .btn-primary{background:#0a1628;color:#fff;border:none;border-radius:10px;padding:13px 28px;font-weight:600;cursor:pointer;transition:all .2s;}
+      .btn-primary:hover{background:#162540;transform:translateY(-1px);}
+      .btn-primary:disabled{background:#8a9ab0;cursor:not-allowed;}
+      .btn-ghost{background:transparent;color:#6b7280;border:1.5px solid #d1d5db;border-radius:10px;padding:11px 20px;cursor:pointer;}
+      .btn-ghost:hover{border-color:#0a1628;color:#0a1628;}
+      .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+      .grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;}
+      .tag{padding:6px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block;}
+      .tag-success{background:#d1fae5;color:#065f46;}
+      .tag-warning{background:#fef3c7;color:#854d0e;}
+      table{width:100%;border-collapse:collapse;margin:16px 0;}
+      th{text-align:left;padding:12px;font-size:12px;font-weight:700;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9f8f5;text-transform:uppercase;}
+      td{padding:12px;border-bottom:1px solid #f3f4f6;}
+      @media(max-width:768px){.grid2{grid-template-columns:1fr;}.grid3{grid-template-columns:1fr;}}
     `}</style>
   </>
 );
 
+// ============================================================================
+// HELPERS
+// ============================================================================
+
 const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
 const uid = () => Math.random().toString(36).slice(2, 9).toUpperCase();
+const nowStr = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-// Tax calculation for state-specific handling
-const calcTax = (amount, state = 'IN', isTaxable = true) => {
-  if (!isTaxable) return 0;
-  const rates = { IN: 0.07, PA: 0.06, OH: 0.05825, KY: 0.06, MI: 0.06, TN: 0.095 };
-  return parseFloat((amount * (rates[state] || 0.07)).toFixed(2));
-};
-
+// Tax calculation (tobacco only)
 const isTaxableProduct = (p) => {
-  const c = (p?.category || '').toLowerCase();
-  return ['tobacco', 'nicotine', 'cigarette', 'vape', 'e-liquid'].some(t => c.includes(t));
+  const cat = (p?.cat || '').toLowerCase();
+  const name = (p?.name || '').toLowerCase();
+  return ['tobacco', 'nicotine', 'cigarette', 'cigar', 'vape', 'hookah', 'chew', 'dip', 'snuff', 'eliquid', 'e-liquid', 'pod', 'disposable'].some(t => cat.includes(t) || name.includes(t));
 };
 
-// Sample database data
-const SAMPLE_PRODUCTS = [
-  { id: 1, name: 'Cigarettes (Pack)', price: 5.99, category: 'Tobacco', stock: 100 },
-  { id: 2, name: 'Cigars (Box)', price: 12.99, category: 'Tobacco', stock: 50 },
-  { id: 3, name: 'Vape Juice (60ml)', price: 15.99, category: 'Vape', stock: 200 },
-  { id: 4, name: 'Rolling Papers', price: 2.99, category: 'Accessories', stock: 300 },
-  { id: 5, name: 'Lighters', price: 1.99, category: 'Accessories', stock: 250 },
-];
+const calcTax = (items, products, rate) => {
+  return parseFloat(items.reduce((sum, item) => {
+    const p = products.find(x => x.id === item.pid);
+    if (isTaxableProduct(p)) {
+      return sum + (p?.price || 0) * item.qty * rate / 100;
+    }
+    return sum;
+  }, 0).toFixed(2));
+};
 
-const SAMPLE_CUSTOMERS = [
-  { id: 'C001', name: 'ABC Store', phone: '3175096262', city: 'Indianapolis', state: 'IN', totalDue: 150.00, previousBalance: 75.00 },
-  { id: 'C002', name: 'XYZ Shop', phone: '4125551234', city: 'Pittsburgh', state: 'PA', totalDue: 0, previousBalance: 0 },
-];
+// ============================================================================
+// PROFORMA INVOICE COMPONENT
+// ============================================================================
 
-const SAMPLE_DRIVERS = [
-  { id: 'D001', name: 'John Smith', truck: 'T-001', phone: '3175096262', region: 'North' },
-  { id: 'D002', name: 'Maria Garcia', truck: 'T-002', phone: '4125551234', region: 'South' },
-  { id: 'D003', name: 'Carlos Rodriguez', truck: 'T-003', phone: '2674445555', region: 'East' },
-];
+const Invoice = ({ order, products, co, custState, stateRate }) => {
+  const subtotal = order.items.reduce((s, i) => {
+    const p = products.find(x => x.id === i.pid);
+    return s + (p?.price || 0) * i.qty;
+  }, 0);
+
+  const taxAmt = calcTax(order.items, products, stateRate || 0);
+  const total = subtotal + taxAmt;
+
+  return (
+    <div className="card" style={{ maxWidth: 800, margin: '0 auto', background: '#fff' }}>
+      <div style={{ background: '#0a1628', color: '#fff', padding: '24px', marginLeft: -24, marginRight: -24, marginTop: -24, marginBottom: 24 }}>
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 32, marginBottom: 8 }}>Order #{order.id}</h1>
+        <p style={{ fontSize: 12, color: '#4b6080' }}>{order.date}</p>
+        <span className="tag tag-warning">PENDING APPROVAL</span>
+      </div>
+
+      <div className="grid2" style={{ marginBottom: 24 }}>
+        <div>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>Bill To</p>
+          <p style={{ fontWeight: 700, fontSize: 15 }}>{order.businessName}</p>
+          <p style={{ fontSize: 12, color: '#6b7280' }}>{order.ownerName}</p>
+          <p style={{ fontSize: 12, color: '#6b7280' }}>{order.phone}</p>
+          <p style={{ fontSize: 12, color: '#6b7280' }}>{order.email}</p>
+        </div>
+        <div>
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>Order Details</p>
+          <p style={{ fontSize: 12, marginBottom: 4 }}>Order: <strong>{order.id}</strong></p>
+          <p style={{ fontSize: 12, marginBottom: 4 }}>Date: <strong>{order.date}</strong></p>
+          <p style={{ fontSize: 12 }}>Status: <span className="tag tag-warning">PENDING</span></p>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr style={{ background: '#0a1628', color: '#fff' }}>
+            <th>Product</th>
+            <th style={{ textAlign: 'right' }}>Qty</th>
+            <th style={{ textAlign: 'right' }}>Price</th>
+            <th style={{ textAlign: 'right' }}>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {order.items.map((item, i) => {
+            const p = products.find(x => x.id === item.pid);
+            return (
+              <tr key={i}>
+                <td>{p?.name || 'Unknown'}</td>
+                <td style={{ textAlign: 'right' }}>{item.qty}</td>
+                <td style={{ textAlign: 'right' }}>{fmt(p?.price || 0)}</td>
+                <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt((p?.price || 0) * item.qty)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 24 }}>
+        <div style={{ width: 300 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+            <span>Subtotal:</span>
+            <span>{fmt(subtotal)}</span>
+          </div>
+          {taxAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid #e5e7eb' }}>
+            <span>Tax:</span>
+            <span style={{ color: '#10b981' }}>{fmt(taxAmt)}</span>
+          </div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 12, borderTop: '2px solid #0a1628', fontWeight: 700, fontSize: 18 }}>
+            <span>Total Due:</span>
+            <span style={{ color: '#f59e0b' }}>{fmt(total)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
 
 export default function OrderPortal() {
   const [view, setView] = useState('role-select');
-  const [customerData, setCustomerData] = useState(null);
-  const [driverData, setDriverData] = useState(null);
+  const [phone, setPhone] = useState('');
+  const [customer, setCustomer] = useState(null);
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [invoices, setInvoices] = useState([]);
-  const [phone, setPhone] = useState('');
-  const [driverPhone, setDriverPhone] = useState('');
-  const [toast, setToast] = useState('');
+  const [stateTaxes, setStateTaxes] = useState([]);
+  const [company, setCompany] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(''), 2500); };
+  // Load initial data
+  useEffect(() => {
+    loadInitialData();
+  }, []);
 
-  const ToastNotification = () => toast ? (
-    <div style={{ position: 'fixed', top: 20, right: 20, background: '#667eea', color: 'white', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, zIndex: 9999, animation: 'slideIn 0.3s ease', boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)' }}>
-      {toast}
-    </div>
-  ) : null;
+  const loadInitialData = async () => {
+    try {
+      const [prodRes, taxRes, coRes] = await Promise.all([
+        fetch('/api/db?action=get-products').then(r => r.json()),
+        fetch('/api/db?action=get-state-taxes').then(r => r.json()),
+        fetch('/api/db?action=get-company').then(r => r.json()),
+      ]);
+      setProducts(prodRes.data || []);
+      setStateTaxes(taxRes.data || []);
+      setCompany(coRes.data);
+    } catch (err) {
+      console.error('Load error:', err);
+      setError('Failed to load data');
+    }
+  };
 
-  // ========================================================================
-  // CUSTOMER LOGIN & REGISTRATION
-  // ========================================================================
-
-  const handleCustomerLogin = (e) => {
+  const handleCustomerLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const clean = phone.replace(/\D/g, '');
-    const customer = SAMPLE_CUSTOMERS.find(c => c.phone.includes(clean));
-    if (customer) {
-      setCustomerData(customer);
-      setCart([]);
-      setView('catalog');
-      showToast(`Welcome ${customer.name}!`);
-    } else {
-      showToast('Not found. Create new account?');
-      setView('register');
+    setError('');
+    try {
+      const clean = phone.replace(/\D/g, '');
+      const custRes = await fetch('/api/db?action=get-customers');
+      const { data: customers } = await custRes.json();
+      const found = customers.find(c => c.phone.includes(clean));
+
+      if (found) {
+        setCustomer(found);
+        setCart([]);
+        setView('catalog');
+      } else {
+        setError('Customer not found. Create account?');
+        setView('register');
+      }
+    } catch (err) {
+      setError(err.message);
     }
     setLoading(false);
   };
 
-  // ========================================================================
-  // WALK-IN CUSTOMER (NO REGISTRATION NEEDED)
-  // ========================================================================
-
-  const handleWalkInStart = () => {
-    setCustomerData({
-      id: 'WALKIN-' + uid(),
-      name: 'Walk-in Customer',
-      phone: 'N/A',
-      state: 'IN',
-      totalDue: 0,
-      previousBalance: 0,
-      isWalkIn: true,
-    });
-    setCart([]);
-    setView('catalog');
-    showToast('Walk-in mode started');
-  };
-
-  // ========================================================================
-  // CART & INVOICE MANAGEMENT
-  // ========================================================================
-
-  const addToCart = (product) => {
-    const existing = cart.find(i => i.id === product.id);
+  const handleAddToCart = (product) => {
+    const existing = cart.find(i => i.pid === product.id);
     if (existing) {
-      setCart(cart.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i));
+      setCart(cart.map(i => i.pid === product.id ? { ...i, qty: i.qty + 1 } : i));
     } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
+      setCart([...cart, { pid: product.id, qty: 1 }]);
     }
   };
 
-  const removeFromCart = (id) => setCart(cart.filter(i => i.id !== id));
-
-  const updateQuantity = (id, qty) => {
-    if (qty <= 0) removeFromCart(id);
-    else setCart(cart.map(i => i.id === id ? { ...i, quantity: qty } : i));
+  const handleUpdateQuantity = (pid, qty) => {
+    if (qty <= 0) {
+      setCart(cart.filter(i => i.pid !== pid));
+    } else {
+      setCart(cart.map(i => i.pid === pid ? { ...i, qty } : i));
+    }
   };
 
   const cartTotals = useMemo(() => {
-    const subtotal = cart.reduce((s, i) => s + (i.price * i.quantity), 0);
-    const taxable = cart.filter(i => isTaxableProduct(i)).reduce((s, i) => s + (i.price * i.quantity), 0);
-    const tax = calcTax(taxable, customerData?.state || 'IN', true);
-    return { subtotal: parseFloat(subtotal.toFixed(2)), tax, total: parseFloat((subtotal + tax).toFixed(2)) };
-  }, [cart, customerData]);
-
-  const createInvoice = () => {
-    const inv = {
-      id: `INV-${uid()}`,
-      customerId: customerData.id,
-      customerName: customerData.name,
-      items: cart,
-      subtotal: cartTotals.subtotal,
-      tax: cartTotals.tax,
-      total: cartTotals.total,
-      paymentMethod: 'pending',
-      status: 'pending',
-      date: new Date(),
+    const subtotal = cart.reduce((s, i) => {
+      const p = products.find(x => x.id === i.pid);
+      return s + (p?.price || 0) * i.qty;
+    }, 0);
+    const custState = customer?.state || 'IN';
+    const stateData = stateTaxes.find(s => s.id === custState);
+    const rate = stateData?.rate || 7;
+    const tax = calcTax(cart, products, rate);
+    return {
+      subtotal: parseFloat(subtotal.toFixed(2)),
+      tax: tax,
+      total: parseFloat((subtotal + tax).toFixed(2)),
+      rate: rate,
     };
-    setInvoices([...invoices, inv]);
-    showToast('Invoice created!');
-    return inv;
+  }, [cart, customer, products, stateTaxes]);
+
+  const handleCheckout = async () => {
+    setLoading(true);
+    try {
+      const orderId = `ORD${uid()}`;
+      const res = await fetch('/api/db?action=create-sale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cust_id: customer.id,
+          items: cart,
+          subtotal: cartTotals.subtotal,
+          tax: cartTotals.tax,
+          total: cartTotals.total,
+          payment_method: 'pending',
+          date: nowStr(),
+          notes: '',
+        }),
+      });
+      const { id } = await res.json();
+
+      setInvoices([...invoices, {
+        id: id,
+        customerName: customer.name,
+        businessName: customer.name,
+        ownerName: customer.name,
+        address: customer.address,
+        phone: customer.phone,
+        email: customer.email,
+        items: cart,
+        date: nowStr(),
+      }]);
+
+      setCart([]);
+      setView('invoice');
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
   };
 
-  // ========================================================================
-  // ROLE SELECT VIEW
-  // ========================================================================
-
+  // ========== ROLE SELECT VIEW ==========
   if (view === 'role-select') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px', fontFamily: "'Inter', sans-serif" }}>
-        <GlobalStyles />
-        <ToastNotification />
+      <div className="portal">
+        <GS />
         <div className="card" style={{ maxWidth: 450, margin: '80px auto', textAlign: 'center' }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>🛒 VitalWave Order</h1>
-          <p style={{ color: '#94a3b8', marginBottom: 32 }}>What brings you here today?</p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, background: 'linear-gradient(135deg, #0a1628 0%, #162540 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            🛒 VitalWave Order
+          </h1>
+          <p style={{ color: '#6b7280', marginBottom: 32 }}>Select your role</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button className="btn btn-primary" onClick={() => { setPhone(''); setView('customer-login'); }} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>👥 Registered Customer</button>
-            <button className="btn btn-primary" onClick={handleWalkInStart} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>🚶 Walk-in Order</button>
-            <button className="btn btn-primary" onClick={() => { setDriverPhone(''); setView('driver-login'); }} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>🚚 Driver Route</button>
+            <button className="btn-primary" onClick={() => setView('customer-login')} style={{ width: '100%' }}>
+              👥 Customer Login
+            </button>
+            <button className="btn-primary" onClick={() => setView('walk-in')} style={{ width: '100%' }}>
+              🚶 Walk-in Order
+            </button>
+            <button className="btn-primary" onClick={() => setView('driver-login')} style={{ width: '100%' }}>
+              🚚 Driver App
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
-  // ========================================================================
-  // CUSTOMER LOGIN
-  // ========================================================================
-
+  // ========== CUSTOMER LOGIN ==========
   if (view === 'customer-login') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
+      <div className="portal">
+        <GS />
         <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>📱 Customer Login</h1>
+          <h2 style={{ marginBottom: 24, fontSize: 20 }}>📱 Customer Login</h2>
+          {error && <div style={{ color: '#dc2626', background: '#fef2f2', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
           <form onSubmit={handleCustomerLogin}>
-            <label>Phone Number</label>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (317) 509-6262" required autoFocus style={{ marginBottom: 16 }} />
-            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', padding: 12, justifyContent: 'center' }}>
-              {loading ? '⏳ Loading...' : '→ Continue'}
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#6b7280' }}>PHONE NUMBER</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (317) 509-6262" required autoFocus style={{ marginBottom: 16, width: '100%' }} />
+            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', marginBottom: 12 }}>
+              {loading ? 'Loading...' : '→ Continue'}
             </button>
           </form>
-          <button className="btn" onClick={() => setView('role-select')} style={{ width: '100%', marginTop: 12, padding: 12, justifyContent: 'center' }}>← Back</button>
+          <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
         </div>
       </div>
     );
   }
 
-  // ========================================================================
-  // CATALOG VIEW
-  // ========================================================================
-
+  // ========== CATALOG VIEW ==========
   if (view === 'catalog') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      <div className="portal">
+        <GS />
+        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <div>
-              <h1 style={{ fontSize: 24, fontWeight: 700 }}>📦 Catalog</h1>
-              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{customerData?.name} • {customerData?.state}</p>
+              <h1 style={{ fontSize: 28, fontWeight: 700 }}>📦 Catalog</h1>
+              <p style={{ color: '#6b7280', marginTop: 4 }}>{customer?.name} • {customer?.state}</p>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn" onClick={() => setView('account')} style={{ padding: 10 }}>📊 Account</button>
-              <button className="btn btn-primary" onClick={() => setView('cart')} style={{ padding: 10 }}>🛒 {cart.length}</button>
+              <button className="btn-primary" onClick={() => setView('customer-account')} style={{ padding: '10px 20px' }}>📊 Account</button>
+              <button className="btn-primary" onClick={() => setView('cart')} style={{ padding: '10px 20px' }}>🛒 {cart.length}</button>
             </div>
           </div>
 
           <div className="grid3">
-            {SAMPLE_PRODUCTS.map((p) => (
+            {products.map((p) => (
               <div key={p.id} className="card" style={{ textAlign: 'center' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8 }}>{p.name}</h3>
-                <p style={{ fontSize: 11, color: '#94a3b8', marginBottom: 12 }}>{p.category}</p>
-                <p style={{ fontSize: 20, fontWeight: 700, color: '#667eea', marginBottom: 12 }}>{fmt(p.price)}</p>
-                <button className="btn btn-success" onClick={() => { addToCart(p); showToast('Added to cart'); }} style={{ width: '100%', padding: 10 }}>+ Add</button>
+                <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 12 }}>{p.cat}</p>
+                <p style={{ fontSize: 20, fontWeight: 700, color: '#0a1628', marginBottom: 12 }}>{fmt(p.price)}</p>
+                <button className="btn-primary" onClick={() => handleAddToCart(p)} style={{ width: '100%' }}>+ Add</button>
               </div>
             ))}
           </div>
@@ -252,62 +356,62 @@ export default function OrderPortal() {
     );
   }
 
-  // ========================================================================
-  // CART VIEW
-  // ========================================================================
-
+  // ========== CART VIEW ==========
   if (view === 'cart') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
+      <div className="portal">
+        <GS />
         <div className="card" style={{ maxWidth: 700, margin: '0 auto' }}>
-          <button className="btn" onClick={() => setView('catalog')} style={{ marginBottom: 16 }}>← Catalog</button>
+          <button className="btn-ghost" onClick={() => setView('catalog')} style={{ marginBottom: 16 }}>← Catalog</button>
+          <h2 style={{ marginBottom: 16, fontSize: 20 }}>🛒 Cart</h2>
 
           {cart.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40 }}>
-              <p style={{ fontSize: 48, marginBottom: 12 }}>🛒</p>
-              <p style={{ color: '#94a3b8' }}>Cart is empty</p>
-            </div>
+            <p style={{ color: '#6b7280', textAlign: 'center', padding: 40 }}>Cart is empty</p>
           ) : (
             <>
-              <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>📦 Order Summary</h2>
-              <table style={{ marginBottom: 24 }}>
+              <table>
                 <thead>
                   <tr>
                     <th>Product</th>
                     <th style={{ textAlign: 'right' }}>Qty</th>
                     <th style={{ textAlign: 'right' }}>Price</th>
                     <th style={{ textAlign: 'right' }}>Total</th>
-                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cart.map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.name}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <input type="number" min="1" value={item.quantity} onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))} style={{ width: 60, textAlign: 'center' }} />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>{fmt(item.price)}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(item.price * item.quantity)}</td>
-                      <td><button className="btn" onClick={() => removeFromCart(item.id)} style={{ padding: '6px 10px', background: '#fee2e2', color: '#991b1b' }}>×</button></td>
-                    </tr>
-                  ))}
+                  {cart.map((item) => {
+                    const p = products.find(x => x.id === item.pid);
+                    return (
+                      <tr key={item.pid}>
+                        <td>{p?.name}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <input type="number" min="1" value={item.qty} onChange={(e) => handleUpdateQuantity(item.pid, parseInt(e.target.value))} style={{ width: 60, textAlign: 'center' }} />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{fmt(p?.price)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt((p?.price || 0) * item.qty)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 
-              <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, marginBottom: 24 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span>Subtotal:</span> <span>{fmt(cartTotals.subtotal)}</span></div>
-                {cartTotals.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}><span>Tax:</span> <span style={{ color: '#10b981' }}>{fmt(cartTotals.tax)}</span></div>}
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 700, color: '#667eea', paddingTop: 12, borderTop: '2px solid #e2e8f0' }}>
+              <div style={{ background: '#f9f8f5', padding: 16, borderRadius: 10, marginTop: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span>Subtotal:</span> <span>{fmt(cartTotals.subtotal)}</span>
+                </div>
+                {cartTotals.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <span>Tax:</span> <span style={{ color: '#10b981' }}>{fmt(cartTotals.tax)}</span>
+                </div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 12, borderTop: '2px solid #0a1628', fontWeight: 700, fontSize: 16, color: '#0a1628' }}>
                   <span>Total:</span> <span>{fmt(cartTotals.total)}</span>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 12 }}>
-                <button className="btn btn-primary" onClick={() => { createInvoice(); setView('invoice'); }} style={{ flex: 1, padding: 12, justifyContent: 'center' }}>→ Review Invoice</button>
-                <button className="btn" onClick={() => setCart([])} style={{ flex: 1, padding: 12, justifyContent: 'center' }}>Clear</button>
+              <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                <button className="btn-primary" onClick={handleCheckout} disabled={loading} style={{ flex: 1, padding: 12 }}>
+                  {loading ? 'Processing...' : '→ Checkout'}
+                </button>
+                <button className="btn-ghost" onClick={() => setCart([])} style={{ flex: 1, padding: 12 }}>Clear</button>
               </div>
             </>
           )}
@@ -316,135 +420,73 @@ export default function OrderPortal() {
     );
   }
 
-  // ========================================================================
-  // INVOICE VIEW
-  // ========================================================================
-
-  if (view === 'invoice') {
+  // ========== INVOICE VIEW ==========
+  if (view === 'invoice' && invoices.length > 0) {
     const lastInv = invoices[invoices.length - 1];
+    const stateData = stateTaxes.find(s => s.id === customer?.state);
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
-        <div className="card fade-in" style={{ maxWidth: 700, margin: '0 auto' }}>
-          <div style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', padding: 24, borderRadius: '16px 16px 0 0', marginLeft: -24, marginRight: -24, marginTop: -24, marginBottom: 24, color: '#fff' }}>
-            <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>📄 Proforma Invoice</h1>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)' }}>#{lastInv?.id}</p>
-          </div>
-
-          <div className="grid2" style={{ marginBottom: 24 }}>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Bill To</p>
-              <p style={{ fontWeight: 700 }}>{lastInv?.customerName}</p>
-              <p style={{ fontSize: 12, color: '#6b7280' }}>{customerData?.state}</p>
-            </div>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Invoice Details</p>
-              <p style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span>Date:</span> <span>{lastInv?.date?.toLocaleDateString()}</span></p>
-              <p style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span>Status:</span> <span className="tag tag-warning">Pending</span></p>
-            </div>
-          </div>
-
-          <table style={{ marginBottom: 24 }}>
-            <thead>
-              <tr>
-                <th>Item</th>
-                <th style={{ textAlign: 'right' }}>Qty</th>
-                <th style={{ textAlign: 'right' }}>Price</th>
-                <th style={{ textAlign: 'right' }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {lastInv?.items?.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.name}</td>
-                  <td style={{ textAlign: 'right' }}>{item.quantity}</td>
-                  <td style={{ textAlign: 'right' }}>{fmt(item.price)}</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(item.price * item.quantity)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, marginBottom: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', width: 300, marginLeft: 'auto', gap: 12 }}>
-              <span>Subtotal:</span>
-              <span style={{ minWidth: 80, textAlign: 'right' }}>{fmt(lastInv?.subtotal)}</span>
-            </div>
-            {lastInv?.tax > 0 && <div style={{ display: 'flex', justifyContent: 'flex-end', width: 300, marginLeft: 'auto', gap: 12 }}>
-              <span>Tax:</span>
-              <span style={{ minWidth: 80, textAlign: 'right' }}>{fmt(lastInv?.tax)}</span>
-            </div>}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', width: 300, marginLeft: 'auto', gap: 12, fontSize: 16, fontWeight: 700, color: '#667eea', paddingTop: 12, borderTop: '2px solid #e2e8f0' }}>
-              <span>Total Due:</span>
-              <span style={{ minWidth: 80, textAlign: 'right' }}>{fmt(lastInv?.total)}</span>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn btn-success" onClick={() => { showToast('Order submitted for approval'); setView('account'); }} style={{ flex: 1, padding: 12, justifyContent: 'center' }}>✓ Submit</button>
-            <button className="btn" onClick={() => setView('cart')} style={{ flex: 1, padding: 12, justifyContent: 'center' }}>← Edit</button>
-          </div>
+      <div className="portal">
+        <GS />
+        <Invoice
+          order={lastInv}
+          products={products}
+          co={company}
+          custState={customer?.state}
+          stateRate={stateData?.rate || 7}
+        />
+        <div style={{ maxWidth: 800, margin: '24px auto', display: 'flex', gap: 12 }}>
+          <button className="btn-primary" onClick={() => { setCart([]); setView('catalog'); }} style={{ flex: 1, padding: 12 }}>✓ Place Order</button>
+          <button className="btn-ghost" onClick={() => setView('cart')} style={{ flex: 1, padding: 12 }}>← Edit</button>
         </div>
       </div>
     );
   }
 
-  // ========================================================================
-  // CUSTOMER ACCOUNT (AR TRACKING, INVOICE HISTORY)
-  // ========================================================================
-
-  if (view === 'account') {
-    const myInvoices = invoices.filter(i => i.customerId === customerData?.id);
-    const paidAmount = myInvoices.filter(i => i.status === 'paid').reduce((s, i) => s + i.total, 0);
-    const totalDue = (customerData?.previousBalance || 0) + myInvoices.filter(i => i.status === 'pending').reduce((s, i) => s + i.total, 0);
-
+  // ========== CUSTOMER ACCOUNT VIEW ==========
+  if (view === 'customer-account') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
+      <div className="portal">
+        <GS />
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 700 }}>📊 My Account</h1>
-            <button className="btn btn-primary" onClick={() => { setCustomerData(null); setCart([]); setView('role-select'); }} style={{ padding: 10 }}>Logout</button>
+            <h1 style={{ fontSize: 28, fontWeight: 700 }}>📊 My Account</h1>
+            <button className="btn-primary" onClick={() => { setCustomer(null); setView('role-select'); }} style={{ padding: '10px 20px' }}>Logout</button>
           </div>
 
           <div className="grid3">
             <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Total Invoices</p>
-              <p style={{ fontSize: 28, fontWeight: 700, color: '#667eea' }}>{myInvoices.length}</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>Previous Balance</p>
+              <p style={{ fontSize: 28, fontWeight: 700, color: customer?.previous_balance > 0 ? '#dc2626' : '#10b981' }}>{fmt(customer?.previous_balance)}</p>
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Amount Paid</p>
-              <p style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>{fmt(paidAmount)}</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>Pending Orders</p>
+              <p style={{ fontSize: 28, fontWeight: 700, color: '#0a1628' }}>{invoices.filter(i => i.id).length}</p>
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Balance Due</p>
-              <p style={{ fontSize: 28, fontWeight: 700, color: totalDue > 0 ? '#dc2626' : '#10b981' }}>{fmt(totalDue)}</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>Total Due</p>
+              <p style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>{fmt((customer?.previous_balance || 0) + invoices.reduce((s, i) => s + (i.total || 0), 0))}</p>
             </div>
           </div>
 
           <div className="card" style={{ marginTop: 24 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📋 Invoice History</h2>
-            {myInvoices.length === 0 ? (
-              <p style={{ color: '#94a3b8', textAlign: 'center', padding: 24 }}>No invoices yet</p>
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📋 Order History</h2>
+            {invoices.length === 0 ? (
+              <p style={{ color: '#6b7280', textAlign: 'center', padding: 24 }}>No orders yet</p>
             ) : (
               <table>
                 <thead>
                   <tr>
-                    <th>Invoice #</th>
+                    <th>Order #</th>
                     <th style={{ textAlign: 'right' }}>Amount</th>
                     <th>Status</th>
-                    <th style={{ textAlign: 'right' }}>Date</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {myInvoices.map((inv) => (
+                  {invoices.map((inv) => (
                     <tr key={inv.id}>
                       <td>{inv.id}</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(inv.total)}</td>
-                      <td><span className={`tag tag-${inv.status === 'pending' ? 'warning' : 'success'}`}>{inv.status.toUpperCase()}</span></td>
-                      <td style={{ textAlign: 'right', fontSize: 12 }}>{inv.date?.toLocaleDateString()}</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(inv.total || 0)}</td>
+                      <td><span className="tag tag-warning">PENDING</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -452,95 +494,41 @@ export default function OrderPortal() {
             )}
           </div>
 
-          <div style={{ marginTop: 24, display: 'flex', gap: 12 }}>
-            <button className="btn btn-primary" onClick={() => setView('catalog')} style={{ flex: 1, padding: 12, justifyContent: 'center' }}>🛒 New Order</button>
+          <div style={{ maxWidth: 1000, margin: '24px auto' }}>
+            <button className="btn-primary" onClick={() => setView('catalog')} style={{ width: '100%', padding: 12 }}>🛒 New Order</button>
           </div>
         </div>
       </div>
     );
   }
 
-  // ========================================================================
-  // DRIVER LOGIN & ROUTE MANAGEMENT
-  // ========================================================================
+  // ========== WALK-IN & DRIVER VIEWS (MINIMAL FOR NOW) ==========
+  if (view === 'walk-in') {
+    return (
+      <div className="portal">
+        <GS />
+        <div className="card" style={{ maxWidth: 400, margin: '60px auto', textAlign: 'center' }}>
+          <h2 style={{ marginBottom: 20 }}>🚶 Walk-in Order</h2>
+          <p style={{ color: '#6b7280', marginBottom: 24 }}>Quick order without registration</p>
+          <button className="btn-primary" onClick={() => { setCustomer({ name: 'Walk-in', state: 'IN' }); setView('catalog'); }} style={{ width: '100%', marginBottom: 12 }}>Start Order</button>
+          <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'driver-login') {
     return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
+      <div className="portal">
+        <GS />
         <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
-          <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24 }}>🚚 Driver Login</h1>
-          <form onSubmit={(e) => { e.preventDefault(); const driver = SAMPLE_DRIVERS.find(d => d.phone.includes(driverPhone.replace(/\D/g, ''))); if (driver) { setDriverData(driver); setView('driver-home'); } }}>
-            <label>Driver ID or Phone</label>
-            <input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="Driver ID or phone" required autoFocus style={{ marginBottom: 16 }} />
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: 12, justifyContent: 'center' }}>→ Login</button>
-          </form>
-          <button className="btn" onClick={() => setView('role-select')} style={{ width: '100%', marginTop: 12, padding: 12, justifyContent: 'center' }}>← Back</button>
+          <h2 style={{ marginBottom: 24 }}>🚚 Driver Login</h2>
+          <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>Driver app features coming soon</p>
+          <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
         </div>
       </div>
     );
   }
 
-  if (view === 'driver-home') {
-    return (
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)', padding: '20px' }}>
-        <GlobalStyles />
-        <ToastNotification />
-        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <h1 style={{ fontSize: 24, fontWeight: 700 }}>🚚 Driver Dashboard</h1>
-            <button className="btn btn-primary" onClick={() => { setDriverData(null); setView('role-select'); }} style={{ padding: 10 }}>Logout</button>
-          </div>
-
-          <div className="grid3">
-            <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Driver</p>
-              <p style={{ fontSize: 20, fontWeight: 700 }}>{driverData?.name}</p>
-              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>{driverData?.truck}</p>
-            </div>
-            <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Today's Sales</p>
-              <p style={{ fontSize: 28, fontWeight: 700, color: '#10b981' }}>$3,500</p>
-              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>45 items</p>
-            </div>
-            <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', marginBottom: 8 }}>Route Progress</p>
-              <p style={{ fontSize: 28, fontWeight: 700, color: '#667eea' }}>8/12</p>
-              <p style={{ fontSize: 12, color: '#94a3b8', marginTop: 8 }}>stops complete</p>
-            </div>
-          </div>
-
-          <div className="card" style={{ marginTop: 24 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📍 Today's Route</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Stop #</th>
-                  <th>Customer</th>
-                  <th>City</th>
-                  <th style={{ textAlign: 'right' }}>Sales</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3].map((n) => (
-                  <tr key={n}>
-                    <td>{n}</td>
-                    <td>Customer {n}</td>
-                    <td>City {n}</td>
-                    <td style={{ textAlign: 'right' }}>$500</td>
-                    <td><span className={`tag ${n <= 2 ? 'tag-success' : 'tag-warning'}`}>{n <= 2 ? 'Complete' : 'Next'}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Default fallback
-  return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><p>Loading...</p></div>;
+  return <div className="portal"><GS /><p>Loading...</p></div>;
 }
