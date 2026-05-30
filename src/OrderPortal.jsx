@@ -61,8 +61,9 @@ const SAMPLE_CUSTOMERS = [
 ];
 
 const SAMPLE_DRIVERS = [
-  { id: 'D001', name: 'John Smith', truck: 'T-001', phone: '2674445555', region: 'North' },
-  { id: 'D002', name: 'Maria Garcia', truck: 'T-002', phone: '3175552222', region: 'South' },
+  { id: 'D001', name: 'John Smith', truck: 'T-001', phone: '3175096262', region: 'North' },
+  { id: 'D002', name: 'Maria Garcia', truck: 'T-002', phone: '4125551234', region: 'South' },
+  { id: 'D003', name: 'Carlos Rodriguez', truck: 'T-003', phone: '2674445555', region: 'East' },
 ];
 
 export default function OrderPortal() {
