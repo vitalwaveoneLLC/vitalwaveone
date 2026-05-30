@@ -1,8 +1,12 @@
-// VitalWaveOne LLC - Full OrderPortal v2 with Driver App
-// Part 1: Customer Portal ✅
-// Part 2: Driver App (Routes, Loading, Sales, Payments, Expenses, Stats)
+// VitalWaveOne LLC - Customer Order Portal v2
+// Migrated from Supabase to Neon PostgreSQL + Vercel Functions
+// Includes: Customer registration, catalog, cart, invoices, Driver app, Walk-in support
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
+
+// ============================================================================
+// STYLES
+// ============================================================================
 
 const GS = () => (
   <>
@@ -11,12 +15,12 @@ const GS = () => (
       *{box-sizing:border-box;margin:0;padding:0;}
       body{background:#f8f5f0;font-family:'Inter',sans-serif;}
       .portal{min-height:100vh;background:#f8f5f0;padding:20px;}
-      input,select,textarea{font-family:'Inter',sans-serif;border:1.5px solid #e5e7eb;border-radius:9px;padding:11px 14px;font-size:14px;}
+      input,select,textarea{font-family:'Inter',sans-serif;transition:all .15s;border:1.5px solid #e5e7eb;border-radius:9px;padding:11px 14px;font-size:14px;}
       input:focus,select:focus,textarea:focus{outline:none;border-color:#0a1628;box-shadow:0 0 0 3px #0a162814;}
       .card{background:#fff;border-radius:16px;border:1px solid #e5e7eb;box-shadow:0 2px 16px #00000008;padding:24px;}
       .btn-primary{background:#0a1628;color:#fff;border:none;border-radius:10px;padding:13px 28px;font-weight:600;cursor:pointer;transition:all .2s;}
       .btn-primary:hover{background:#162540;transform:translateY(-1px);}
-      .btn-success{background:#10b981;color:#fff;border:none;border-radius:10px;padding:13px 28px;font-weight:600;cursor:pointer;}
+      .btn-primary:disabled{background:#8a9ab0;cursor:not-allowed;}
       .btn-ghost{background:transparent;color:#6b7280;border:1.5px solid #d1d5db;border-radius:10px;padding:11px 20px;cursor:pointer;}
       .btn-ghost:hover{border-color:#0a1628;color:#0a1628;}
       .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -24,10 +28,6 @@ const GS = () => (
       .tag{padding:6px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-block;}
       .tag-success{background:#d1fae5;color:#065f46;}
       .tag-warning{background:#fef3c7;color:#854d0e;}
-      .tag-danger{background:#fee2e2;color:#991b1b;}
-      .tab-nav{display:flex;gap:8px;border-bottom:2px solid #e5e7eb;margin-bottom:24px;}
-      .tab-btn{padding:12px 16px;background:transparent;border:none;border-bottom:3px solid transparent;cursor:pointer;font-weight:600;color:#6b7280;transition:all .2s;}
-      .tab-btn.active{color:#0a1628;border-color:#0a1628;}
       table{width:100%;border-collapse:collapse;margin:16px 0;}
       th{text-align:left;padding:12px;font-size:12px;font-weight:700;color:#6b7280;border-bottom:2px solid #e5e7eb;background:#f9f8f5;text-transform:uppercase;}
       td{padding:12px;border-bottom:1px solid #f3f4f6;}
@@ -36,10 +36,15 @@ const GS = () => (
   </>
 );
 
+// ============================================================================
+// HELPERS
+// ============================================================================
+
 const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
 const uid = () => Math.random().toString(36).slice(2, 9).toUpperCase();
 const nowStr = () => new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+// Tax calculation (tobacco only)
 const isTaxableProduct = (p) => {
   const cat = (p?.cat || '').toLowerCase();
   const name = (p?.name || '').toLowerCase();
@@ -55,6 +60,10 @@ const calcTax = (items, products, rate) => {
     return sum;
   }, 0).toFixed(2));
 };
+
+// ============================================================================
+// PROFORMA INVOICE COMPONENT
+// ============================================================================
 
 const Invoice = ({ order, products, co, custState, stateRate }) => {
   const subtotal = order.items.reduce((s, i) => {
@@ -79,11 +88,13 @@ const Invoice = ({ order, products, co, custState, stateRate }) => {
           <p style={{ fontWeight: 700, fontSize: 15 }}>{order.businessName}</p>
           <p style={{ fontSize: 12, color: '#6b7280' }}>{order.ownerName}</p>
           <p style={{ fontSize: 12, color: '#6b7280' }}>{order.phone}</p>
+          <p style={{ fontSize: 12, color: '#6b7280' }}>{order.email}</p>
         </div>
         <div>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase' }}>Order Details</p>
           <p style={{ fontSize: 12, marginBottom: 4 }}>Order: <strong>{order.id}</strong></p>
-          <p style={{ fontSize: 12 }}>Date: <strong>{order.date}</strong></p>
+          <p style={{ fontSize: 12, marginBottom: 4 }}>Date: <strong>{order.date}</strong></p>
+          <p style={{ fontSize: 12 }}>Status: <span className="tag tag-warning">PENDING</span></p>
         </div>
       </div>
 
@@ -122,7 +133,7 @@ const Invoice = ({ order, products, co, custState, stateRate }) => {
             <span style={{ color: '#10b981' }}>{fmt(taxAmt)}</span>
           </div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 12, borderTop: '2px solid #0a1628', fontWeight: 700, fontSize: 18 }}>
-            <span>Total:</span>
+            <span>Total Due:</span>
             <span style={{ color: '#f59e0b' }}>{fmt(total)}</span>
           </div>
         </div>
@@ -131,14 +142,15 @@ const Invoice = ({ order, products, co, custState, stateRate }) => {
   );
 };
 
+// ============================================================================
+// MAIN COMPONENT
+// ============================================================================
+
 export default function OrderPortal() {
   const [view, setView] = useState('role-select');
   const [phone, setPhone] = useState('');
-  const [driverPhone, setDriverPhone] = useState('');
   const [customer, setCustomer] = useState(null);
-  const [driver, setDriver] = useState(null);
   const [products, setProducts] = useState([]);
-  const [customers, setCustomers] = useState([]);
   const [cart, setCart] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [stateTaxes, setStateTaxes] = useState([]);
@@ -146,23 +158,12 @@ export default function OrderPortal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Driver-specific state
-  const [driverTab, setDriverTab] = useState('dashboard');
-  const [driverLoads, setDriverLoads] = useState([]);
-  const [driverSales, setDriverSales] = useState([]);
-  const [driverExpenses, setDriverExpenses] = useState([]);
-  const [loadItems, setLoadItems] = useState({});
-  const [saleItems, setSaleItems] = useState({});
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('cash');
-  const [checkNumber, setCheckNumber] = useState('');
-  const [zelleRef, setZelleRef] = useState('');
-
+  // Load initial data
   useEffect(() => {
     loadInitialData();
   }, []);
 
-  const fetchWithTimeout = (url, timeout = 3000) => {
+  const fetchWithTimeout = (url, timeout = 5000) => {
     return Promise.race([
       fetch(url).then(r => r.json()),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
@@ -171,87 +172,99 @@ export default function OrderPortal() {
 
   const loadInitialData = async () => {
     try {
+      // Mock data as fallback
       const defaultProducts = [
         { id: '1', name: 'Cigarettes (Pack)', sku: 'CIG-001', cat: 'Tobacco', price: 5.99, shelf: 100, unit: 'pack' },
         { id: '2', name: 'Cigars (Box)', sku: 'CIG-002', cat: 'Tobacco', price: 12.99, shelf: 50, unit: 'box' },
         { id: '3', name: 'Vape Juice (60ml)', sku: 'VAPE-001', cat: 'Vape', price: 15.99, shelf: 200, unit: 'bottle' },
       ];
+      const defaultTaxes = [
+        { id: 'IN', rate: 7, exempt: false },
+        { id: 'PA', rate: 6, exempt: false },
+      ];
+      const defaultCo = { name: 'VitalWaveOne LLC', phone: '(317) 509-6262', email: 'orders@vitalwaveone.com' };
 
-      const [prodRes, custRes, taxRes, coRes] = await Promise.all([
-        fetchWithTimeout('/api/db?action=get-products'),
-        fetchWithTimeout('/api/db?action=get-customers'),
-        fetchWithTimeout('/api/db?action=get-state-taxes'),
-        fetchWithTimeout('/api/db?action=get-company'),
+      const [prodRes, taxRes, coRes] = await Promise.all([
+        fetchWithTimeout('/api/db?action=get-products', 3000),
+        fetchWithTimeout('/api/db?action=get-state-taxes', 3000),
+        fetchWithTimeout('/api/db?action=get-company', 3000),
       ]);
 
       setProducts(prodRes?.data?.length > 0 ? prodRes.data : defaultProducts);
-      setCustomers(custRes?.data?.length > 0 ? custRes.data : []);
-      setStateTaxes(taxRes?.data?.length > 0 ? taxRes.data : [{ id: 'IN', rate: 7 }]);
-      setCompany(coRes?.data || { name: 'VitalWaveOne LLC' });
+      setStateTaxes(taxRes?.data?.length > 0 ? taxRes.data : defaultTaxes);
+      setCompany(coRes?.data || defaultCo);
     } catch (err) {
       console.error('Load error:', err);
+      // Use defaults on error
       setProducts([
         { id: '1', name: 'Cigarettes (Pack)', sku: 'CIG-001', cat: 'Tobacco', price: 5.99, shelf: 100, unit: 'pack' },
         { id: '2', name: 'Cigars (Box)', sku: 'CIG-002', cat: 'Tobacco', price: 12.99, shelf: 50, unit: 'box' },
+        { id: '3', name: 'Vape Juice (60ml)', sku: 'VAPE-001', cat: 'Vape', price: 15.99, shelf: 200, unit: 'bottle' },
       ]);
-      setStateTaxes([{ id: 'IN', rate: 7 }]);
-      setCompany({ name: 'VitalWaveOne LLC' });
+      setStateTaxes([
+        { id: 'IN', rate: 7, exempt: false },
+        { id: 'PA', rate: 6, exempt: false },
+      ]);
+      setCompany({ name: 'VitalWaveOne LLC', phone: '(317) 509-6262', email: 'orders@vitalwaveone.com' });
     }
   };
 
-  // CUSTOMER LOGIN
   const handleCustomerLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    const clean = phone.replace(/\D/g, '');
-    const mockCustomers = [
-      { id: 'C001', name: 'ABC Store', phone: '3175096262', address: '123 Main St', state: 'IN', email: 'abc@store.com', owner_name: 'John Doe', previous_balance: 150 },
-      { id: 'C002', name: 'XYZ Shop', phone: '4125551234', address: '456 Oak Ave', state: 'PA', email: 'xyz@shop.com', owner_name: 'Jane Smith', previous_balance: 0 },
-    ];
-
+    setError('');
     try {
-      const custRes = await fetchWithTimeout('/api/db?action=get-customers');
-      const custs = (custRes?.data && custRes.data.length > 0) ? custRes.data : mockCustomers;
-      const found = custs.find(c => {
-        const custClean = String(c.phone || '').replace(/\D/g, '');
-        return custClean === clean;
-      });
+      const clean = phone.replace(/\D/g, '');
 
-      if (found) {
-        setCustomer(found);
-        setCart([]);
-        setView('catalog');
-      } else {
-        setError('Not found. Try 317-509-6262');
+      // Mock customers for testing
+      const mockCustomers = [
+        { id: 'C001', name: 'ABC Store', address: '123 Main St', city: 'Indianapolis', state: 'IN', phone: '3175096262', email: 'abc@store.com', owner_name: 'John Doe', previous_balance: 150.00, notes: '' },
+        { id: 'C002', name: 'XYZ Shop', address: '456 Oak Ave', city: 'Pittsburgh', state: 'PA', phone: '4125551234', email: 'xyz@shop.com', owner_name: 'Jane Smith', previous_balance: 0, notes: '' },
+      ];
+
+      try {
+        const custRes = await Promise.race([
+          fetch('/api/db?action=get-customers').then(r => r.json()),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+        ]).catch(() => ({ data: mockCustomers }));
+
+        const customers = (custRes?.data && custRes.data.length > 0) ? custRes.data : mockCustomers;
+        // Match by cleaning both sides
+        const found = customers.find(c => {
+          const custClean = String(c.phone || '').replace(/\D/g, '');
+          return custClean === clean || c.phone === clean || c.phone.includes(clean);
+        });
+
+        if (found) {
+          setCustomer(found);
+          setCart([]);
+          setView('catalog');
+        } else {
+          console.log('Available customers:', customers.map(c => ({ name: c.name, phone: c.phone })));
+          console.log('Searching for:', clean);
+          setError('Customer not found. Try 317-509-6262');
+        }
+      } catch (fetchErr) {
+        // Fallback to mock if API fails
+        console.error('API fetch error:', fetchErr);
+        const found = mockCustomers.find(c => {
+          const custClean = String(c.phone || '').replace(/\D/g, '');
+          return custClean === clean || c.phone === clean || c.phone.includes(clean);
+        });
+        if (found) {
+          setCustomer(found);
+          setCart([]);
+          setView('catalog');
+        } else {
+          setError('Customer not found. Try 317-509-6262');
+        }
       }
     } catch (err) {
-      setError('Login failed');
+      setError('Login failed: ' + err.message);
     }
     setLoading(false);
   };
 
-  // DRIVER LOGIN
-  const handleDriverLogin = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    const clean = driverPhone.replace(/\D/g, '');
-    const mockDrivers = [
-      { id: 'D001', name: 'John Smith', phone: '3175096262', truck_id: 'T001', truck_name: 'Truck 1', region: 'North' },
-      { id: 'D002', name: 'Maria Garcia', phone: '4125551234', truck_id: 'T002', truck_name: 'Truck 2', region: 'South' },
-    ];
-
-    const found = mockDrivers.find(d => String(d.phone).replace(/\D/g, '') === clean);
-    if (found) {
-      setDriver(found);
-      setView('driver-app');
-      setError('');
-    } else {
-      setError('Driver not found. Try 317-509-6262');
-    }
-    setLoading(false);
-  };
-
-  // CART OPERATIONS
   const handleAddToCart = (product) => {
     const existing = cart.find(i => i.pid === product.id);
     if (existing) {
@@ -311,176 +324,61 @@ export default function OrderPortal() {
         customerName: customer.name,
         businessName: customer.name,
         ownerName: customer.name,
+        address: customer.address,
+        phone: customer.phone,
+        email: customer.email,
         items: cart,
         date: nowStr(),
-        total: cartTotals.total,
       }]);
 
       setCart([]);
       setView('invoice');
     } catch (err) {
-      setError('Checkout failed');
+      setError(err.message);
     }
     setLoading(false);
   };
 
-  // DRIVER TAB CONTENT
-  const DriverDashboard = () => (
-    <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>🚚 Driver Dashboard</h2>
-      <div className="grid3">
-        <div className="card" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 8 }}>DRIVER</p>
-          <p style={{ fontSize: 18, fontWeight: 700 }}>{driver?.name}</p>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>{driver?.truck_name}</p>
-        </div>
-        <div className="card" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 8 }}>TODAY'S SALES</p>
-          <p style={{ fontSize: 24, fontWeight: 700, color: '#10b981' }}>{fmt(driverSales.reduce((s, sale) => s + (sale.total || 0), 0))}</p>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>{driverSales.length} sales</p>
-        </div>
-        <div className="card" style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 8 }}>CASH COLLECTED</p>
-          <p style={{ fontSize: 24, fontWeight: 700, color: '#f59e0b' }}>{fmt(driverSales.filter(s => s.method === 'cash').reduce((s, sale) => s + (sale.total || 0), 0))}</p>
-        </div>
-      </div>
-    </div>
-  );
-
-  const DriverSalesTab = () => (
-    <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>💰 Sales</h2>
-
-      <div className="card" style={{ marginBottom: 24 }}>
-        <label style={{ display: 'block', marginBottom: 12 }}>SELECT CUSTOMER</label>
-        <select value={selectedCustomer?.id || ''} onChange={(e) => {
-          const cust = customers.find(c => c.id === e.target.value);
-          setSelectedCustomer(cust);
-        }} style={{ marginBottom: 12, width: '100%' }}>
-          <option value="">Choose customer...</option>
-          {customers.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-
-        {selectedCustomer && <div style={{ background: '#f9f8f5', padding: 12, borderRadius: 8, marginBottom: 16 }}>
-          <p style={{ fontSize: 12 }}><strong>{selectedCustomer.name}</strong></p>
-          <p style={{ fontSize: 11, color: '#6b7280' }}>Previous Balance: {fmt(selectedCustomer.previous_balance)}</p>
-        </div>}
-
-        <label style={{ display: 'block', marginBottom: 12 }}>ADD PRODUCTS</label>
-        <div className="grid3">
-          {products.map(p => (
-            <div key={p.id} style={{ padding: 12, border: '1px solid #e5e7eb', borderRadius: 8, textAlign: 'center' }}>
-              <p style={{ fontSize: 12, fontWeight: 700 }}>{p.name}</p>
-              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8 }}>{fmt(p.price)}</p>
-              <input type="number" min="0" value={saleItems[p.id] || 0} onChange={(e) => setSaleItems({ ...saleItems, [p.id]: parseInt(e.target.value) || 0 })} placeholder="Qty" style={{ width: '100%', marginBottom: 8 }} />
-              <button className="btn-success" onClick={() => {
-                if ((saleItems[p.id] || 0) > 0) {
-                  // Add to sale
-                  setSaleItems({ ...saleItems, [p.id]: 0 });
-                }
-              }} style={{ width: '100%', padding: 8 }}>Add</button>
-            </div>
-          ))}
-        </div>
-
-        <label style={{ display: 'block', marginTop: 16, marginBottom: 12 }}>PAYMENT METHOD</label>
-        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ marginBottom: 12, width: '100%' }}>
-          <option value="cash">💵 Cash</option>
-          <option value="check">✓ Check</option>
-          <option value="card">💳 Card (+3%)</option>
-          <option value="zelle">📱 Zelle</option>
-          <option value="account">📋 Account (AR)</option>
-        </select>
-
-        {paymentMethod === 'check' && <input type="text" value={checkNumber} onChange={(e) => setCheckNumber(e.target.value)} placeholder="Check #" style={{ width: '100%', marginBottom: 12 }} />}
-        {paymentMethod === 'zelle' && <input type="text" value={zelleRef} onChange={(e) => setZelleRef(e.target.value)} placeholder="Zelle Ref" style={{ width: '100%', marginBottom: 12 }} />}
-
-        <button className="btn-primary" onClick={() => {
-          const newSale = { id: `S${uid()}`, customer: selectedCustomer?.name, total: 100, method: paymentMethod, date: nowStr() };
-          setDriverSales([...driverSales, newSale]);
-          setSelectedCustomer(null);
-          setSaleItems({});
-          setError('');
-        }} style={{ width: '100%', padding: 12 }}>✓ Record Sale</button>
-      </div>
-
-      <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>Today's Sales</h3>
-      {driverSales.length === 0 ? (
-        <p style={{ color: '#6b7280' }}>No sales yet</p>
-      ) : (
-        <table>
-          <thead>
-            <tr>
-              <th>Customer</th>
-              <th style={{ textAlign: 'right' }}>Amount</th>
-              <th>Method</th>
-              <th style={{ textAlign: 'right' }}>Time</th>
-            </tr>
-          </thead>
-          <tbody>
-            {driverSales.map(sale => (
-              <tr key={sale.id}>
-                <td>{sale.customer}</td>
-                <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(sale.total)}</td>
-                <td><span className="tag tag-success">{sale.method.toUpperCase()}</span></td>
-                <td style={{ textAlign: 'right', fontSize: 12 }}>{sale.date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-
-  const DriverExpensesTab = () => (
-    <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>⛽ Expenses</h2>
-      <div className="card" style={{ marginBottom: 24 }}>
-        <select style={{ marginBottom: 12, width: '100%' }}>
-          <option>Gas</option>
-          <option>Meals</option>
-          <option>Tolls</option>
-          <option>Other</option>
-        </select>
-        <input type="number" placeholder="Amount" style={{ marginBottom: 12, width: '100%' }} />
-        <input type="text" placeholder="Description (optional)" style={{ marginBottom: 12, width: '100%' }} />
-        <button className="btn-primary" style={{ width: '100%', padding: 12 }}>Log Expense</button>
-      </div>
-      <p style={{ color: '#6b7280' }}>No expenses logged today</p>
-    </div>
-  );
-
-  // ========== MAIN RENDER ==========
-
+  // ========== ROLE SELECT VIEW ==========
   if (view === 'role-select') {
     return (
       <div className="portal">
         <GS />
         <div className="card" style={{ maxWidth: 450, margin: '80px auto', textAlign: 'center' }}>
-          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24 }}>🛒 VitalWave Order</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 24, background: 'linear-gradient(135deg, #0a1628 0%, #162540 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            🛒 VitalWave Order
+          </h1>
           <p style={{ color: '#6b7280', marginBottom: 32 }}>Select your role</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <button className="btn-primary" onClick={() => setView('customer-login')} style={{ width: '100%' }}>👥 Customer</button>
-            <button className="btn-primary" onClick={() => setView('driver-login')} style={{ width: '100%' }}>🚚 Driver</button>
-            <button className="btn-primary" onClick={() => { setCustomer({ name: 'Walk-in', state: 'IN' }); setView('catalog'); }} style={{ width: '100%' }}>🚶 Walk-in</button>
+            <button className="btn-primary" onClick={() => setView('customer-login')} style={{ width: '100%' }}>
+              👥 Customer Login
+            </button>
+            <button className="btn-primary" onClick={() => setView('walk-in')} style={{ width: '100%' }}>
+              🚶 Walk-in Order
+            </button>
+            <button className="btn-primary" onClick={() => setView('driver-login')} style={{ width: '100%' }}>
+              🚚 Driver App
+            </button>
           </div>
         </div>
       </div>
     );
   }
 
+  // ========== CUSTOMER LOGIN ==========
   if (view === 'customer-login') {
     return (
       <div className="portal">
         <GS />
         <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
-          <h2 style={{ marginBottom: 24 }}>📱 Customer Login</h2>
+          <h2 style={{ marginBottom: 24, fontSize: 20 }}>📱 Customer Login</h2>
           {error && <div style={{ color: '#dc2626', background: '#fef2f2', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
           <form onSubmit={handleCustomerLogin}>
-            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="317-509-6262" required autoFocus style={{ marginBottom: 16 }} />
-            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', marginBottom: 12 }}>{loading ? 'Loading...' : '→ Continue'}</button>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6, color: '#6b7280' }}>PHONE NUMBER</label>
+            <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+1 (317) 509-6262" required autoFocus style={{ marginBottom: 16, width: '100%' }} />
+            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', marginBottom: 12 }}>
+              {loading ? 'Loading...' : '→ Continue'}
+            </button>
           </form>
           <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
         </div>
@@ -488,59 +386,19 @@ export default function OrderPortal() {
     );
   }
 
-  if (view === 'driver-login') {
-    return (
-      <div className="portal">
-        <GS />
-        <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
-          <h2 style={{ marginBottom: 24 }}>🚚 Driver Login</h2>
-          {error && <div style={{ color: '#dc2626', background: '#fef2f2', padding: 12, borderRadius: 8, marginBottom: 16, fontSize: 13 }}>{error}</div>}
-          <form onSubmit={handleDriverLogin}>
-            <input type="tel" value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="317-509-6262" required autoFocus style={{ marginBottom: 16 }} />
-            <button type="submit" className="btn-primary" disabled={loading} style={{ width: '100%', marginBottom: 12 }}>{loading ? 'Loading...' : '→ Login'}</button>
-          </form>
-          <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === 'driver-app') {
-    return (
-      <div className="portal">
-        <GS />
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700 }}>🚚 {driver?.name}</h1>
-            <button className="btn-primary" onClick={() => { setDriver(null); setView('role-select'); }} style={{ padding: '10px 20px' }}>Logout</button>
-          </div>
-
-          <div className="tab-nav">
-            <button className={`tab-btn ${driverTab === 'dashboard' ? 'active' : ''}`} onClick={() => setDriverTab('dashboard')}>Dashboard</button>
-            <button className={`tab-btn ${driverTab === 'sales' ? 'active' : ''}`} onClick={() => setDriverTab('sales')}>💰 Sales</button>
-            <button className={`tab-btn ${driverTab === 'expenses' ? 'active' : ''}`} onClick={() => setDriverTab('expenses')}>⛽ Expenses</button>
-          </div>
-
-          <div className="card">
-            {driverTab === 'dashboard' && <DriverDashboard />}
-            {driverTab === 'sales' && <DriverSalesTab />}
-            {driverTab === 'expenses' && <DriverExpensesTab />}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Customer Portal
+  // ========== CATALOG VIEW ==========
   if (view === 'catalog') {
     return (
       <div className="portal">
         <GS />
         <div style={{ maxWidth: 1200, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <h1 style={{ fontSize: 28, fontWeight: 700 }}>📦 Catalog</h1>
+            <div>
+              <h1 style={{ fontSize: 28, fontWeight: 700 }}>📦 Catalog</h1>
+              <p style={{ color: '#6b7280', marginTop: 4 }}>{customer?.name} • {customer?.state}</p>
+            </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn-primary" onClick={() => setView('account')} style={{ padding: '10px 20px' }}>📊 Account</button>
+              <button className="btn-primary" onClick={() => setView('customer-account')} style={{ padding: '10px 20px' }}>📊 Account</button>
               <button className="btn-primary" onClick={() => setView('cart')} style={{ padding: '10px 20px' }}>🛒 {cart.length}</button>
             </div>
           </div>
@@ -560,16 +418,17 @@ export default function OrderPortal() {
     );
   }
 
+  // ========== CART VIEW ==========
   if (view === 'cart') {
     return (
       <div className="portal">
         <GS />
         <div className="card" style={{ maxWidth: 700, margin: '0 auto' }}>
           <button className="btn-ghost" onClick={() => setView('catalog')} style={{ marginBottom: 16 }}>← Catalog</button>
-          <h2 style={{ marginBottom: 16 }}>🛒 Cart</h2>
+          <h2 style={{ marginBottom: 16, fontSize: 20 }}>🛒 Cart</h2>
 
           {cart.length === 0 ? (
-            <p style={{ color: '#6b7280', textAlign: 'center', padding: 40 }}>Empty</p>
+            <p style={{ color: '#6b7280', textAlign: 'center', padding: 40 }}>Cart is empty</p>
           ) : (
             <>
               <table>
@@ -577,6 +436,7 @@ export default function OrderPortal() {
                   <tr>
                     <th>Product</th>
                     <th style={{ textAlign: 'right' }}>Qty</th>
+                    <th style={{ textAlign: 'right' }}>Price</th>
                     <th style={{ textAlign: 'right' }}>Total</th>
                   </tr>
                 </thead>
@@ -586,7 +446,10 @@ export default function OrderPortal() {
                     return (
                       <tr key={item.pid}>
                         <td>{p?.name}</td>
-                        <td style={{ textAlign: 'right' }}><input type="number" min="1" value={item.qty} onChange={(e) => handleUpdateQuantity(item.pid, parseInt(e.target.value))} style={{ width: 60 }} /></td>
+                        <td style={{ textAlign: 'right' }}>
+                          <input type="number" min="1" value={item.qty} onChange={(e) => handleUpdateQuantity(item.pid, parseInt(e.target.value))} style={{ width: 60, textAlign: 'center' }} />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>{fmt(p?.price)}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt((p?.price || 0) * item.qty)}</td>
                       </tr>
                     );
@@ -601,13 +464,15 @@ export default function OrderPortal() {
                 {cartTotals.tax > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                   <span>Tax:</span> <span style={{ color: '#10b981' }}>{fmt(cartTotals.tax)}</span>
                 </div>}
-                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 12, borderTop: '2px solid #0a1628', fontWeight: 700, color: '#0a1628' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, marginTop: 12, borderTop: '2px solid #0a1628', fontWeight: 700, fontSize: 16, color: '#0a1628' }}>
                   <span>Total:</span> <span>{fmt(cartTotals.total)}</span>
                 </div>
               </div>
 
               <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
-                <button className="btn-primary" onClick={handleCheckout} disabled={loading} style={{ flex: 1, padding: 12 }}>→ Checkout</button>
+                <button className="btn-primary" onClick={handleCheckout} disabled={loading} style={{ flex: 1, padding: 12 }}>
+                  {loading ? 'Processing...' : '→ Checkout'}
+                </button>
                 <button className="btn-ghost" onClick={() => setCart([])} style={{ flex: 1, padding: 12 }}>Clear</button>
               </div>
             </>
@@ -617,6 +482,7 @@ export default function OrderPortal() {
     );
   }
 
+  // ========== INVOICE VIEW ==========
   if (view === 'invoice' && invoices.length > 0) {
     const lastInv = invoices[invoices.length - 1];
     const stateData = stateTaxes.find(s => s.id === customer?.state);
@@ -638,35 +504,36 @@ export default function OrderPortal() {
     );
   }
 
-  if (view === 'account') {
+  // ========== CUSTOMER ACCOUNT VIEW ==========
+  if (view === 'customer-account') {
     return (
       <div className="portal">
         <GS />
         <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
             <h1 style={{ fontSize: 28, fontWeight: 700 }}>📊 My Account</h1>
-            <button className="btn-primary" onClick={() => { setCustomer(null); setView('role-select'); }}>Logout</button>
+            <button className="btn-primary" onClick={() => { setCustomer(null); setView('role-select'); }} style={{ padding: '10px 20px' }}>Logout</button>
           </div>
 
           <div className="grid3">
             <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 8 }}>PREVIOUS BALANCE</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>Previous Balance</p>
               <p style={{ fontSize: 28, fontWeight: 700, color: customer?.previous_balance > 0 ? '#dc2626' : '#10b981' }}>{fmt(customer?.previous_balance)}</p>
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 8 }}>PENDING ORDERS</p>
-              <p style={{ fontSize: 28, fontWeight: 700 }}>{invoices.length}</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>Pending Orders</p>
+              <p style={{ fontSize: 28, fontWeight: 700, color: '#0a1628' }}>{invoices.filter(i => i.id).length}</p>
             </div>
             <div className="card" style={{ textAlign: 'center' }}>
-              <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, marginBottom: 8 }}>TOTAL DUE</p>
+              <p style={{ fontSize: 11, color: '#6b7280', marginBottom: 8, textTransform: 'uppercase', fontWeight: 700 }}>Total Due</p>
               <p style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>{fmt((customer?.previous_balance || 0) + invoices.reduce((s, i) => s + (i.total || 0), 0))}</p>
             </div>
           </div>
 
           <div className="card" style={{ marginTop: 24 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📋 Orders</h2>
+            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>📋 Order History</h2>
             {invoices.length === 0 ? (
-              <p style={{ color: '#6b7280' }}>No orders</p>
+              <p style={{ color: '#6b7280', textAlign: 'center', padding: 24 }}>No orders yet</p>
             ) : (
               <table>
                 <thead>
@@ -689,7 +556,37 @@ export default function OrderPortal() {
             )}
           </div>
 
-          <button className="btn-primary" onClick={() => setView('catalog')} style={{ width: '100%', padding: 12, marginTop: 24 }}>🛒 New Order</button>
+          <div style={{ maxWidth: 1000, margin: '24px auto' }}>
+            <button className="btn-primary" onClick={() => setView('catalog')} style={{ width: '100%', padding: 12 }}>🛒 New Order</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ========== WALK-IN & DRIVER VIEWS (MINIMAL FOR NOW) ==========
+  if (view === 'walk-in') {
+    return (
+      <div className="portal">
+        <GS />
+        <div className="card" style={{ maxWidth: 400, margin: '60px auto', textAlign: 'center' }}>
+          <h2 style={{ marginBottom: 20 }}>🚶 Walk-in Order</h2>
+          <p style={{ color: '#6b7280', marginBottom: 24 }}>Quick order without registration</p>
+          <button className="btn-primary" onClick={() => { setCustomer({ name: 'Walk-in', state: 'IN' }); setView('catalog'); }} style={{ width: '100%', marginBottom: 12 }}>Start Order</button>
+          <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (view === 'driver-login') {
+    return (
+      <div className="portal">
+        <GS />
+        <div className="card" style={{ maxWidth: 400, margin: '60px auto' }}>
+          <h2 style={{ marginBottom: 24 }}>🚚 Driver Login</h2>
+          <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>Driver app features coming soon</p>
+          <button className="btn-ghost" onClick={() => setView('role-select')} style={{ width: '100%' }}>← Back</button>
         </div>
       </div>
     );
