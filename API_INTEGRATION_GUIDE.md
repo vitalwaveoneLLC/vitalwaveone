@@ -1,174 +1,158 @@
-# API Integration Guide - Next Steps
+# OrderPortal API Integration Guide
 
-**Status:** ✅ Database migrated  
-**Next:** Update all your API endpoints
+## Quick Start
 
----
+The OrderPortal component now uses Neon PostgreSQL via Vercel API instead of Supabase SDK.
 
-## What Was Done
-
-✅ **Updated:** `/api/auth/verify-admin.js` - Added rate limiting  
-✅ **Created:** `/api/sample-secure-endpoint.js` - Template showing session + CSRF middleware
-
----
-
-## Your Action Items
-
-### 1. Copy Pattern to Other Endpoints
-
-Use `/api/sample-secure-endpoint.js` as a template for all endpoints:
-
-**For reading data (GET):**
-```javascript
-import { validateSession } from './middleware/auth.js';
-
-// No CSRF needed for GET
-// Just extract tenantId from request
-```
-
-**For creating/updating/deleting (POST/PUT/PATCH/DELETE):**
-```javascript
-import { validateSession } from './middleware/auth.js';
-import { csrfMiddleware } from './middleware/csrf.js';
-
-// Validate session
-await validateSession(req, res, () => {});
-if (!req.session) return res.status(401).json({ error: 'Unauthorized' });
-
-// Validate CSRF
-await csrfMiddleware(req, res, () => {});
-if (res.headersSent) return;
-
-// Your code here
-```
-
----
-
-### 2. Files You Need to Update
-
-Find these files in `/api` and update them:
-
-**Auth endpoints (add rate limiting):**
-- `api/auth/verify-admin.js` ✅ DONE
-- `api/auth/send-otp.js` (add rate limiting like verify-admin)
-- `api/auth/verify-otp.js` (add rate limiting)
-- `api/auth/signup.js` (add rate limiting)
-
-**Mutation endpoints (add session + CSRF):**
-- `api/data/[table].js` (POST, PUT, PATCH, DELETE methods)
-- `api/storage/upload.js`
-- `api/storage/delete.js`
-- Any other endpoints that change data
-
----
-
-### 3. Quick Update Template
-
-For each endpoint file, add at the top:
+### Basic API Call Pattern
 
 ```javascript
-// Add these imports
-import { checkRateLimit } from '../middleware/rate-limiter.js';
-import { validateSession } from '../middleware/auth.js';
-import { csrfMiddleware } from '../middleware/csrf.js';
+// Read data
+const { data } = await dbQuery("get-products");
+const { data: custs } = await dbQuery("get-customers");
 
-export default async function handler(req, res) {
-  // ... headers ...
-
-  // For auth endpoints (rate limiting)
-  const rateLimit = await checkRateLimit(`key:${identifier}`, 5, 900);
-  if (!rateLimit.allowed) {
-    return res.status(429).json({ error: 'Too many attempts' });
-  }
-
-  // For mutation endpoints (session + CSRF)
-  if (req.method !== 'GET') {
-    await validateSession(req, res, () => {});
-    if (!req.session) return res.status(401).json({ error: 'Unauthorized' });
-
-    await csrfMiddleware(req, res, () => {});
-    if (res.headersSent) return;
-  }
-
-  // Your existing code
-}
-```
-
----
-
-## Frontend Integration (Next Step)
-
-After updating API, update React components:
-
-```javascript
-// 1. Use session hook
-import { useSession } from './hooks/useSession';
-const { session, isAuthenticated } = useSession();
-
-// 2. Use form validation
-import { useFormValidation } from './hooks/useFormValidation';
-import { customerSchema } from '../lib/validation';
-const form = useFormValidation(customerSchema);
-
-// 3. Send CSRF token with requests
-const response = await fetch('/api/endpoint', {
-  method: 'POST',
-  headers: {
-    'X-CSRF-Token': localStorage.getItem('csrf_token'),
-  },
-  credentials: 'include',
-  body: JSON.stringify(data),
+// Create/Update data
+const { data: sale } = await dbMutate("create-sales", {
+  id: "ORD-123",
+  cust_id: "C001",
+  items: [{pid: "P1", qty: 5}],
+  total: 100.00,
+  // ... other fields
 });
 ```
 
----
+## Key API Endpoints
 
-## Checklist
+### GET Endpoints (Read-Only)
 
-**API Endpoints:**
-- [ ] Find all endpoints in `/api` folder
-- [ ] Add rate limiting to auth endpoints
-- [ ] Add session + CSRF to mutation endpoints
-- [ ] Test each endpoint
+All read operations: `GET /api/db?action={action}`
 
-**Frontend Components:**
-- [ ] Add useSession hook to dashboard
-- [ ] Add useFormValidation to all forms
-- [ ] Add CSRF token to API requests
-- [ ] Test login and forms
+- `get-products` - All products with inventory
+- `get-customers` - Registered customers
+- `get-state-taxes` - Tax rates by state
+- `get-company` - Company settings
+- `get-sales` - Sales/orders history
+- `get-payments` - Payment records
+- `get-loads` - Truck loads
 
----
+### POST Endpoints (Create)
 
-## Files Created
+All create: `POST /api/db?action={action}` with JSON body
 
-✅ `api/auth/verify-admin.js` - Updated with rate limiting
-✅ `api/sample-secure-endpoint.js` - Template (reference only, don't use in production)
-✅ `api/middleware/rate-limiter.js` - Rate limiting logic
-✅ `api/middleware/auth.js` - Session validation
-✅ `api/middleware/csrf.js` - CSRF token validation
-✅ `src/hooks/useSession.jsx` - React session hook
-✅ `src/hooks/useFormValidation.jsx` - React form validation
+- `create-sales` - New order/sale
+- `create-customers` - New customer registration
+- `create-payments` - Payment record
+- `create-expenses` - Driver expense
 
----
+### PUT Endpoints (Update)
 
-## Common Issues
+All update: `PUT /api/db?action={action}` with JSON body
 
-**"Module not found: rate-limiter"**
-→ Restart dev server: `npm run dev`
+- `update-sales` - Modify order
+- `update-products` - Update inventory
+- `update-payments` - Mark as paid
+- `update-loads` - Change load status
 
-**Tests failing**
-→ Run: `npm test`
+### Special Endpoints
 
-**API returning 401**
-→ Session not validated. Check middleware is imported.
+#### Driver Authentication
+```javascript
+POST /api/auth/driver-login
+Body: { "phone": "3175096262" }
+Returns: { "data": { id, name, phone, truck_id, ... } }
+```
 
----
+#### WhatsApp Notifications
+```javascript
+POST /api/send-whatsapp
+Body: { "phone": "+13175096262", "message": "..." }
+Returns: { "success": true, "messageId": "..." }
+```
 
-## Next Steps
+## Migration from Supabase
 
-1. **Update API endpoints** using sample-secure-endpoint.js as guide
-2. **Update React components** with useSession and useFormValidation hooks
-3. **Test everything** - `npm test`
-4. **Run dev server** - `npm run dev`
+All Supabase SDK calls replaced:
 
-**Want me to update a specific endpoint file?** Let me know which one!
+| Old Pattern | New Pattern |
+|-----------|-----------|
+| `supabase.from("products").select("*")` | `await dbQuery("get-products")` |
+| `supabase.from("sales").insert({...})` | `await dbMutate("create-sales", {...})` |
+| `supabase.from("products").update({...})` | `await dbMutate("update-products", {...})` |
+| `supabase.auth.signInWithPassword()` | `fetch('/api/auth/driver-login', POST)` |
+| `supabase.functions.invoke("send-whatsapp")` | `fetch('/api/send-whatsapp', POST)` |
+
+## Examples
+
+### Load Initial Data
+```javascript
+const [prodRes, custRes, taxRes] = await Promise.all([
+  dbQuery("get-products"),
+  dbQuery("get-customers"),
+  dbQuery("get-state-taxes"),
+]);
+setProducts(prodRes?.data || []);
+setCustomers(custRes?.data || []);
+```
+
+### Create a Sale
+```javascript
+const { data } = await dbMutate("create-sales", {
+  id: "ORD-" + uid(),
+  cust_id: customer.id,
+  items: cartItems,
+  subtotal: 100.00,
+  tax: 8.50,
+  total: 108.50,
+  status: "pending"
+});
+```
+
+### Record Driver Sale
+```javascript
+await dbMutate("create-sales", {
+  id: "S-" + uid(),
+  cust_id: customerId,
+  items: [{pid, qty}, ...],
+  payment_method: "cash",
+  total: 108.50
+});
+```
+
+## Error Handling
+
+```javascript
+try {
+  const { data } = await dbQuery("get-products");
+  setProducts(data || []);
+} catch (err) {
+  setError("Failed: " + err.message);
+}
+```
+
+All API helpers log errors: `console.error()` on failure.
+
+## Testing
+
+```bash
+# cURL test
+curl "http://localhost:3000/api/db?action=get-products"
+
+# Create test
+curl -X POST "http://localhost:3000/api/db?action=create-customers" \
+  -H "Content-Type: application/json" \
+  -d '{"id":"C1","name":"Store","phone":"317-509-6262"}'
+```
+
+## Response Format
+
+Success:
+```json
+{ "data": { "id": "P001", "name": "Product", ... } }
+```
+
+Error:
+```json
+{ "error": "Invalid customer ID" }
+```
+
+See `src/OrderPortal.jsx` lines 50-105 for full API implementation details.

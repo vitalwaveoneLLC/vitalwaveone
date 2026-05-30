@@ -1,11 +1,70 @@
-// VitalWaveOne WMS - Modern SaaS Edition
+// VitalWaveOne WMS - Admin Dashboard (Neon PostgreSQL via Vercel APIs)
+// ALIGNED WITH OrderPortal.jsx - All Supabase calls replaced with /api/db endpoints
 // FREE OpenStreetMap + Leaflet + Real-time GPS Tracking + Clean Minimalist Design
 
 import { useState, useEffect, useMemo, useRef } from "react";
-import { db } from "./db";
 import StripePaymentModal from "./StripePaymentModal.jsx";
 import LoginPage from "./LoginPage.jsx";
 import LandingPage from "./LandingPage.jsx";
+
+// ────────────────────────────────────────────────────────────
+// API HELPER FUNCTIONS (Neon PostgreSQL via Vercel APIs)
+// ────────────────────────────────────────────────────────────
+
+const apiCall = async (action, params = {}) => {
+  try {
+    const url = new URL(`${window.location.origin}/api/db`);
+    url.searchParams.append("action", action);
+    Object.entries(params).forEach(([k,v]) => {
+      if(v !== undefined && v !== null) url.searchParams.append(k, v);
+    });
+
+    const res = await fetch(url.toString());
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || `API error: ${res.status}`);
+    }
+    return await res.json();
+  } catch (e) {
+    console.error(`API call failed (${action}):`, e);
+    throw e;
+  }
+};
+
+const apiMutate = async (action, body) => {
+  try {
+    const method = action.includes("delete")
+      ? "DELETE"
+      : action.includes("update")
+      ? "PUT"
+      : "POST";
+
+    const res = await fetch(`${window.location.origin}/api/db?action=${action}`, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || `API error: ${res.status}`);
+    }
+    return await res.json();
+  } catch (e) {
+    console.error(`API mutation failed (${action}):`, e);
+    throw e;
+  }
+};
+
+const dbQuery = async (action, params) => {
+  const data = await apiCall(action, params);
+  return { data };
+};
+
+const dbMutate = async (action, body) => {
+  const data = await apiMutate(action, body);
+  return { data };
+};
 
 // ────────────────────────────────────────────────────────────
 // MODERN STYLING
@@ -513,24 +572,350 @@ const MapView = ({ trucks, customers }) => {
 };
 
 // ────────────────────────────────────────────────────────────
-// TRUCK MANAGEMENT TAB
+// ADMIN TAB COMPONENTS
 // ────────────────────────────────────────────────────────────
 
-const TruckManagementTab = ({ trucks, onSave, onDelete }) => {
+const ProductsTab = ({ products, onRefresh }) => {
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ id: null, driver: "", name: "", phone: "", status: "active" });
+  const [form, setForm] = useState({ id: "", name: "", cat: "", price: 0, stock: 0 });
 
   const handleSave = async () => {
-    if (!form.driver || !form.name) return alert("Fill required fields");
-    await onSave(form);
-    setForm({ id: null, driver: "", name: "", phone: "", status: "active" });
-    setShowModal(false);
+    if (!form.name || !form.cat || form.price <= 0) return alert("Fill required fields");
+    try {
+      if (form.id) {
+        await dbMutate("update-products", form);
+      } else {
+        await dbMutate("create-products", form);
+      }
+      setForm({ id: "", name: "", cat: "", price: 0, stock: 0 });
+      setShowModal(false);
+      onRefresh();
+    } catch (e) {
+      alert("Error saving product: " + e.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete product?")) return;
+    try {
+      await apiMutate("delete-products", { id });
+      onRefresh();
+    } catch (e) {
+      alert("Error deleting product: " + e.message);
+    }
   };
 
   return (
     <div>
       <div style={{ marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={() => { setForm({ id: "", name: "", cat: "", price: 0, stock: 0 }); setShowModal(true); }}>
+          {Icons.plus} Add Product
+        </button>
+      </div>
+
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>Stock</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {products.map((p) => (
+              <tr key={p.id}>
+                <td>{p.name}</td>
+                <td>{p.cat}</td>
+                <td>${p.price?.toFixed(2)}</td>
+                <td>{p.stock || 0}</td>
+                <td>
+                  <button className="btn" onClick={() => { setForm(p); setShowModal(true); }}>Edit</button>
+                  <button className="btn btn-danger" onClick={() => handleDelete(p.id)} style={{ marginLeft: 4 }}>Delete</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div className="modal" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: 16 }}>{form.id ? "Edit Product" : "Add Product"}</h2>
+            <div className="form-group">
+              <label>Product Name</label>
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Category</label>
+              <input value={form.cat} onChange={(e) => setForm({ ...form, cat: e.target.value })} />
+            </div>
+            <div className="two-col">
+              <div className="form-group">
+                <label>Price</label>
+                <input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: parseFloat(e.target.value) })} />
+              </div>
+              <div className="form-group">
+                <label>Stock</label>
+                <input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: parseInt(e.target.value) })} />
+              </div>
+            </div>
+            <button className="btn btn-primary" onClick={handleSave} style={{ width: "100%" }}>Save Product</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const CustomersTab = ({ customers, onRefresh }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ id: "", name: "", phone: "", city: "", state: "IN", ar_balance: 0 });
+
+  const handleSave = async () => {
+    if (!form.name || !form.phone) return alert("Fill required fields");
+    try {
+      if (form.id) {
+        await dbMutate("update-customers", form);
+      } else {
+        await dbMutate("create-customers", form);
+      }
+      setForm({ id: "", name: "", phone: "", city: "", state: "IN", ar_balance: 0 });
+      setShowModal(false);
+      onRefresh();
+    } catch (e) {
+      alert("Error saving customer: " + e.message);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <button className="btn btn-primary" onClick={() => { setForm({ id: "", name: "", phone: "", city: "", state: "IN", ar_balance: 0 }); setShowModal(true); }}>
+          {Icons.plus} Add Customer
+        </button>
+      </div>
+
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>City</th>
+              <th>State</th>
+              <th>AR Balance</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {customers.map((c) => (
+              <tr key={c.id}>
+                <td>{c.name}</td>
+                <td>{c.phone}</td>
+                <td>{c.city || "N/A"}</td>
+                <td>{c.state}</td>
+                <td style={{ color: c.ar_balance > 0 ? "#ef4444" : "#10b981" }}>${c.ar_balance?.toFixed(2)}</td>
+                <td>
+                  <button className="btn" onClick={() => { setForm(c); setShowModal(true); }}>Edit</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {showModal && (
+        <div className="modal" onClick={() => setShowModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: 16 }}>{form.id ? "Edit Customer" : "Add Customer"}</h2>
+            <div className="form-group">
+              <label>Business Name</label>
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+            </div>
+            <div className="form-group">
+              <label>Phone</label>
+              <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            </div>
+            <div className="two-col">
+              <div className="form-group">
+                <label>City</label>
+                <input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} />
+              </div>
+              <div className="form-group">
+                <label>State</label>
+                <select value={form.state} onChange={(e) => setForm({ ...form, state: e.target.value })}>
+                  <option>IN</option>
+                  <option>IL</option>
+                  <option>OH</option>
+                  <option>KY</option>
+                </select>
+              </div>
+            </div>
+            <div className="form-group">
+              <label>AR Balance</label>
+              <input type="number" step="0.01" value={form.ar_balance} onChange={(e) => setForm({ ...form, ar_balance: parseFloat(e.target.value) })} />
+            </div>
+            <button className="btn btn-primary" onClick={handleSave} style={{ width: "100%" }}>Save Customer</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SalesTab = ({ sales, customers, products }) => {
+  const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const totalRevenue = sales.reduce((s, x) => s + (x.total || 0), 0);
+  const totalAR = sales.filter(x => !x.paid).reduce((s, x) => s + (x.total || 0), 0);
+  const paidSales = sales.filter(x => x.paid).length;
+
+  return (
+    <div>
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-label">Total Revenue</div>
+          <div className="kpi-value">{fmt(totalRevenue)}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Accounts Receivable</div>
+          <div className="kpi-value">{fmt(totalAR)}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Paid Invoices</div>
+          <div className="kpi-value">{paidSales}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Total Invoices</div>
+          <div className="kpi-value">{sales.length}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Recent Sales</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Customer</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sales.length === 0 ? (
+              <tr><td colSpan="6" style={{ textAlign: "center", color: "#94a3b8" }}>No sales yet</td></tr>
+            ) : (
+              sales.map((s) => (
+                <tr key={s.id}>
+                  <td>{s.id}</td>
+                  <td>{s.cust_id ? (customers.find(c => c.id === s.cust_id)?.name || "Unknown") : "Walk-in"}</td>
+                  <td>{fmt(s.total)}</td>
+                  <td>{s.payment_method || "N/A"}</td>
+                  <td><span className={`tag ${s.paid ? "tag-success" : "tag-warning"}`}>{s.paid ? "PAID" : "PENDING"}</span></td>
+                  <td>{new Date(s.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const PaymentsTab = ({ sales, customers }) => {
+  const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const payments = sales.filter(s => s.paid);
+  const byMethod = {};
+  payments.forEach(p => {
+    const method = p.payment_method || "cash";
+    byMethod[method] = (byMethod[method] || 0) + (p.total || 0);
+  });
+
+  return (
+    <div>
+      <div className="kpi-grid">
+        {Object.entries(byMethod).map(([method, total]) => (
+          <div key={method} className="kpi-card">
+            <div className="kpi-label">{method.toUpperCase()}</div>
+            <div className="kpi-value">{fmt(total)}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Recorded Payments</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Customer</th>
+              <th>Amount</th>
+              <th>Method</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {payments.length === 0 ? (
+              <tr><td colSpan="5" style={{ textAlign: "center", color: "#94a3b8" }}>No payments recorded</td></tr>
+            ) : (
+              payments.map((p) => (
+                <tr key={p.id}>
+                  <td>{p.id}</td>
+                  <td>{p.cust_id ? (customers.find(c => c.id === p.cust_id)?.name || "Unknown") : "Walk-in"}</td>
+                  <td>{fmt(p.total)}</td>
+                  <td>{p.payment_method || "N/A"}</td>
+                  <td>{new Date(p.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const TruckManagementTab = ({ trucks, onSave, onDelete, onRefresh }) => {
+  const [showModal, setShowModal] = useState(false);
+  const [form, setForm] = useState({ id: "", driver: "", name: "", phone: "", status: "active" });
+
+  const handleSave = async () => {
+    if (!form.driver || !form.name) return alert("Fill required fields");
+    try {
+      if (form.id) {
+        await dbMutate("update-trucks", form);
+      } else {
+        await dbMutate("create-trucks", form);
+      }
+      setForm({ id: "", driver: "", name: "", phone: "", status: "active" });
+      setShowModal(false);
+      onRefresh();
+    } catch (e) {
+      alert("Error saving truck: " + e.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (!confirm("Delete truck?")) return;
+    try {
+      await apiMutate("delete-trucks", { id });
+      onRefresh();
+    } catch (e) {
+      alert("Error deleting truck: " + e.message);
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <button className="btn btn-primary" onClick={() => { setForm({ id: "", driver: "", name: "", phone: "", status: "active" }); setShowModal(true); }}>
           {Icons.plus} Add Truck
         </button>
       </div>
@@ -554,8 +939,8 @@ const TruckManagementTab = ({ trucks, onSave, onDelete }) => {
                 <td>{t.phone}</td>
                 <td><span className="tag tag-success">Active</span></td>
                 <td>
-                  <button className="btn" onClick={() => setForm(t)}>Edit</button>
-                  <button className="btn btn-danger" onClick={() => onDelete(t.id)} style={{ marginLeft: 4 }}>Delete</button>
+                  <button className="btn" onClick={() => { setForm(t); setShowModal(true); }}>Edit</button>
+                  <button className="btn btn-danger" onClick={() => handleDelete(t.id)} style={{ marginLeft: 4 }}>Delete</button>
                 </td>
               </tr>
             ))}
@@ -565,8 +950,8 @@ const TruckManagementTab = ({ trucks, onSave, onDelete }) => {
 
       {showModal && (
         <div className="modal" onClick={() => setShowModal(false)}>
-          <div className="modal-content">
-            <h2 style={{ marginBottom: 16 }}>Add Truck</h2>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ marginBottom: 16 }}>{form.id ? "Edit Truck" : "Add Truck"}</h2>
             <div className="form-group">
               <label>Driver Name</label>
               <input value={form.driver} onChange={(e) => setForm({ ...form, driver: e.target.value })} />
@@ -587,6 +972,140 @@ const TruckManagementTab = ({ trucks, onSave, onDelete }) => {
   );
 };
 
+const DriversTab = ({ trucks }) => {
+  const drivers = trucks || [];
+  return (
+    <div className="card">
+      <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Driver List</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Truck</th>
+            <th>Phone</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {drivers.map((d) => (
+            <tr key={d.id}>
+              <td>{d.driver}</td>
+              <td>{d.name}</td>
+              <td>{d.phone}</td>
+              <td><span className="tag tag-success">Active</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const LoadsTab = ({ sales }) => {
+  const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
+  const loads = sales.slice(0, 10);
+
+  return (
+    <div>
+      <div className="kpi-grid">
+        <div className="kpi-card">
+          <div className="kpi-label">Total Loads</div>
+          <div className="kpi-value">{sales.length}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">In Transit</div>
+          <div className="kpi-value">{sales.filter(s => s.status === "recorded").length}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Delivered</div>
+          <div className="kpi-value">{sales.filter(s => s.status === "paid").length}</div>
+        </div>
+      </div>
+
+      <div className="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Load ID</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loads.map((l) => (
+              <tr key={l.id}>
+                <td>{l.id}</td>
+                <td>{fmt(l.total)}</td>
+                <td><span className={`tag ${l.paid ? "tag-success" : "tag-warning"}`}>{l.status}</span></td>
+                <td>{new Date(l.created_at).toLocaleDateString()}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+const ExpensesTab = ({ sales }) => {
+  const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
+  return (
+    <div className="card">
+      <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Operating Expenses</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th>Amount</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Fuel</td>
+            <td>{fmt(0)}</td>
+            <td>{new Date().toLocaleDateString()}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const SettingsTab = ({ company, onSave }) => {
+  const [form, setForm] = useState(company || { name: "VitalWaveOne LLC", phone: "", email: "" });
+
+  const handleSave = async () => {
+    try {
+      await dbMutate("update-company", form);
+      onSave(form);
+      alert("Settings saved!");
+    } catch (e) {
+      alert("Error saving settings: " + e.message);
+    }
+  };
+
+  return (
+    <div className="card">
+      <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Company Settings</h3>
+      <div className="form-group">
+        <label>Company Name</label>
+        <input value={form.name || ""} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+      </div>
+      <div className="form-group">
+        <label>Phone</label>
+        <input value={form.phone || ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+      </div>
+      <div className="form-group">
+        <label>Email</label>
+        <input type="email" value={form.email || ""} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+      </div>
+      <button className="btn btn-primary" onClick={handleSave}>Save Settings</button>
+    </div>
+  );
+};
+
 // ────────────────────────────────────────────────────────────
 // MAIN APP
 // ────────────────────────────────────────────────────────────
@@ -595,8 +1114,15 @@ export default function App() {
   const [page, setPage] = useState("landing"); // landing | login | dashboard
   const [tab, setTab] = useState("dashboard");
   const [auth, setAuth] = useState(null);
-  const [data, setData] = useState({ sales: [], customers: [], trucks: [], products: [] });
+  const [data, setData] = useState({
+    sales: [],
+    customers: [],
+    trucks: [],
+    products: [],
+    company: null,
+  });
   const [toast, setToast] = useState("");
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Check auth on mount
@@ -624,24 +1150,40 @@ export default function App() {
   }, []);
 
   const loadData = async (tenantId) => {
+    setLoading(true);
     try {
-      // For now, load empty data - in production connect to API
-      // Example: const trucks = await fetch('/api/trucks?tenant_id=' + tenantId);
+      const [prodRes, custRes, salesRes, coRes] = await Promise.all([
+        dbQuery("get-products"),
+        dbQuery("get-customers"),
+        dbQuery("get-sales"),
+        dbQuery("get-company"),
+      ]);
+
+      const trucksRes = await dbQuery("get-trucks");
+
       setData({
-        sales: [],
-        customers: [],
-        trucks: [],
-        products: [],
+        products: prodRes?.data || [],
+        customers: custRes?.data || [],
+        sales: salesRes?.data || [],
+        trucks: trucksRes?.data || [],
+        company: coRes?.data || { name: "VitalWaveOne LLC" },
       });
     } catch (e) {
       console.error("Load error:", e);
-      // Still set empty data so dashboard loads
       setData({
         sales: [],
         customers: [],
         trucks: [],
         products: [],
+        company: { name: "VitalWaveOne LLC" },
       });
+    }
+    setLoading(false);
+  };
+
+  const refreshData = async () => {
+    if (auth) {
+      await loadData(auth.tenant_id);
     }
   };
 
@@ -664,6 +1206,8 @@ export default function App() {
     activeTrucks: data.trucks.length,
   }), [data]);
 
+  const fmt = (n) => `$${Number(n || 0).toFixed(2)}`;
+
   return (
     <div className="app-container">
       <GlobalStyles />
@@ -685,10 +1229,16 @@ export default function App() {
         <div className="tabs">
           {[
             ["dashboard", "📊 Dashboard"],
-            ["trucks", "🚚 Truck Management"],
+            ["products", "📦 Products"],
             ["customers", "👥 Customers"],
             ["sales", "💰 Sales"],
+            ["payments", "💳 Payments"],
+            ["trucks", "🚚 Trucks"],
+            ["drivers", "👨 Drivers"],
+            ["loads", "📦 Loads"],
+            ["expenses", "⛽ Expenses"],
             ["map", "🗺️ Live Map"],
+            ["settings", "⚙️ Settings"],
           ].map(([key, label]) => (
             <button key={key} className={`tab ${tab === key ? "active" : ""}`} onClick={() => setTab(key)}>
               {label}
@@ -702,11 +1252,11 @@ export default function App() {
             <div className="kpi-grid">
               <div className="kpi-card">
                 <div className="kpi-label">Total Revenue</div>
-                <div className="kpi-value">${(kpis.totalRevenue / 1000).toFixed(1)}K</div>
+                <div className="kpi-value">{fmt(kpis.totalRevenue)}</div>
               </div>
               <div className="kpi-card">
                 <div className="kpi-label">Accounts Receivable</div>
-                <div className="kpi-value">${(kpis.totalAR / 1000).toFixed(1)}K</div>
+                <div className="kpi-value">{fmt(kpis.totalAR)}</div>
               </div>
               <div className="kpi-card">
                 <div className="kpi-label">Active Customers</div>
@@ -716,78 +1266,40 @@ export default function App() {
                 <div className="kpi-label">Active Trucks</div>
                 <div className="kpi-value">{kpis.activeTrucks}</div>
               </div>
+              <div className="kpi-card">
+                <div className="kpi-label">Products</div>
+                <div className="kpi-value">{data.products.length}</div>
+              </div>
+              <div className="kpi-card">
+                <div className="kpi-label">Total Orders</div>
+                <div className="kpi-value">{data.sales.length}</div>
+              </div>
+            </div>
+
+            <div className="card" style={{ marginTop: 24 }}>
+              <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Quick Actions</h3>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button className="btn btn-primary" onClick={() => setTab("sales")}>{Icons.plus} New Sale</button>
+                <button className="btn btn-primary" onClick={() => setTab("customers")}>{Icons.user} New Customer</button>
+                <button className="btn btn-primary" onClick={() => setTab("products")}>{Icons.plus} New Product</button>
+                <button className="btn" onClick={refreshData}>{Icons.download} Refresh Data</button>
+              </div>
             </div>
           </div>
         )}
 
-        {tab === "trucks" && (
-          <TruckManagementTab
-            trucks={data.trucks}
-            onSave={(form) => showToast("Truck saved!")}
-            onDelete={() => showToast("Truck deleted!")}
-          />
-        )}
+        {tab === "products" && <ProductsTab products={data.products} onRefresh={refreshData} />}
+        {tab === "customers" && <CustomersTab customers={data.customers} onRefresh={refreshData} />}
+        {tab === "sales" && <SalesTab sales={data.sales} customers={data.customers} products={data.products} />}
+        {tab === "payments" && <PaymentsTab sales={data.sales} customers={data.customers} />}
+        {tab === "trucks" && <TruckManagementTab trucks={data.trucks} onSave={refreshData} onDelete={refreshData} onRefresh={refreshData} />}
+        {tab === "drivers" && <DriversTab trucks={data.trucks} />}
+        {tab === "loads" && <LoadsTab sales={data.sales} />}
+        {tab === "expenses" && <ExpensesTab sales={data.sales} />}
+        {tab === "settings" && <SettingsTab company={data.company} onSave={(co) => setData({ ...data, company: co })} />}
 
         {tab === "map" && (
           <MapView trucks={data.trucks} customers={data.customers} sales={data.sales} />
-        )}
-
-        {tab === "customers" && (
-          <div className="card">
-            <h2 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Customers</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Phone</th>
-                  <th>City</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.customers.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.name}</td>
-                    <td>{c.phone}</td>
-                    <td>{c.city || "N/A"}</td>
-                    <td><span className="tag tag-success">Active</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {tab === "sales" && (
-          <div className="card">
-            <h2 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700 }}>Sales Invoices</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Invoice #</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.sales.length === 0 ? (
-                  <tr><td colSpan="5" style={{ textAlign: "center", color: "#94a3b8" }}>No sales yet</td></tr>
-                ) : (
-                  data.sales.map((s) => (
-                    <tr key={s.id}>
-                      <td>{s.invoice_no}</td>
-                      <td>{s.customer_name}</td>
-                      <td>${s.total?.toFixed(2)}</td>
-                      <td><span className={`tag ${s.paid ? "tag-success" : "tag-warning"}`}>{s.paid ? "Paid" : "Pending"}</span></td>
-                      <td>{new Date(s.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
         )}
       </div>
 
