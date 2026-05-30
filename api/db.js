@@ -12,8 +12,8 @@ const MOCK_PRODUCTS = [
 ];
 
 const MOCK_CUSTOMERS = [
-  { id: 'C001', name: 'ABC Store', address: '123 Main St', city: 'Indianapolis', state: 'IN', phone: '3175096262', email: 'abc@store.com', owner_name: 'John Doe', previous_balance: 150.00, notes: '' },
-  { id: 'C002', name: 'XYZ Shop', address: '456 Oak Ave', city: 'Pittsburgh', state: 'PA', phone: '4125551234', email: 'xyz@shop.com', owner_name: 'Jane Smith', previous_balance: 0, notes: '' },
+  { id: 'C001', name: 'ABC Store', phone: '3175096262', address: '123 Main St', city: 'Indianapolis', state: 'IN', email: 'abc@store.com', owner_name: 'John Doe', previous_balance: 150, notes: '' },
+  { id: 'C002', name: 'XYZ Shop', phone: '4125551234', address: '456 Oak Ave', city: 'Pittsburgh', state: 'PA', email: 'xyz@shop.com', owner_name: 'Jane Smith', previous_balance: 0, notes: '' },
 ];
 
 const MOCK_STATE_TAXES = [

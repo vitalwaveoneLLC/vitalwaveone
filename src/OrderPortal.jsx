@@ -229,18 +229,27 @@ export default function OrderPortal() {
         ]).catch(() => ({ data: mockCustomers }));
 
         const customers = custRes?.data || mockCustomers;
-        const found = customers.find(c => c.phone.includes(clean));
+        // Match by cleaning both sides
+        const found = customers.find(c => {
+          const custClean = String(c.phone || '').replace(/\D/g, '');
+          return custClean === clean || c.phone === clean || c.phone.includes(clean);
+        });
 
         if (found) {
           setCustomer(found);
           setCart([]);
           setView('catalog');
         } else {
+          console.log('Available customers:', customers.map(c => ({ name: c.name, phone: c.phone })));
+          console.log('Searching for:', clean);
           setError('Customer not found. Try 317-509-6262');
         }
       } catch (fetchErr) {
         // Fallback to mock if API fails
-        const found = mockCustomers.find(c => c.phone.includes(clean));
+        const found = mockCustomers.find(c => {
+          const custClean = String(c.phone || '').replace(/\D/g, '');
+          return custClean === clean || c.phone === clean || c.phone.includes(clean);
+        });
         if (found) {
           setCustomer(found);
           setCart([]);
