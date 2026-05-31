@@ -152,10 +152,11 @@ export function OtpLogin({ onLoginSuccess, role = 'customer' }) {
         // Existing user - login success
         localStorage.setItem('auth_token', data.token);
         localStorage.setItem('user_email', data.email);
-        localStorage.setItem('user_role', data.user.role);
+        localStorage.setItem('user_role', role || 'customer');
         setSuccess('Login successful!');
+        const user = { email: data.email, phone: data.phone, role: role || 'customer', verified: true };
         setTimeout(() => {
-          onLoginSuccess(data.user);
+          onLoginSuccess(user);
         }, 500);
       }
 
@@ -231,11 +232,12 @@ export function OtpLogin({ onLoginSuccess, role = 'customer' }) {
 
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user_email', data.email);
-      localStorage.setItem('user_role', data.user.role);
+      localStorage.setItem('user_role', role || 'customer');
       setSuccess('Account created successfully!');
 
+      const user = { email: data.email, phone: data.phone, role: role || 'customer', verified: true };
       setTimeout(() => {
-        onLoginSuccess(data.user);
+        onLoginSuccess(user);
       }, 500);
 
     } catch (err) {
