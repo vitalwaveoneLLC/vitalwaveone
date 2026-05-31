@@ -79,7 +79,7 @@ async function handleSendOtp(req, res) {
 
   // Rate limiting (use email as key since it's required)
   const rateKey = `otp:${email}`;
-  const rateLimit = await checkRateLimit(rateKey, 3, 3600); // 3 attempts per hour
+  const rateLimit = await checkRateLimit(rateKey, 6, 3600); // 6 attempts per hour
   if (!rateLimit.allowed) {
     return res.status(429).json({
       error: 'Too many OTP requests. Please try again later.',
