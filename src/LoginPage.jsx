@@ -1,5 +1,5 @@
 import { useState } from "react";
-import OtpLogin from "./OtpLogin";
+import { OtpLogin } from "./OtpLogin";
 
 export default function LoginPage({ onBack, onLoginSuccess }) {
   const [step, setStep] = useState("login"); // login, registered

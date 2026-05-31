@@ -2,7 +2,7 @@
 // VitalWaveOne OTP Login Component (Replaces WhatsApp with Email OTP)
 // ═══════════════════════════════════════════════════════════════════════════
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const fetchWithTimeout = (url, options = {}, timeout = 10000) => {
   return Promise.race([
@@ -30,7 +30,7 @@ export function OtpLogin({ onLoginSuccess, role = 'customer' }) {
   const [csrfToken, setCsrfToken] = useState('');
 
   // Generate CSRF token on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const token = localStorage.getItem('csrf_token');
     if (!token) {
       const newToken = Math.random().toString(36).substring(2, 15) +
