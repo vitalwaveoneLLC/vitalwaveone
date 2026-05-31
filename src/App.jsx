@@ -920,7 +920,18 @@ function AppContent() {
   }, []);
 
   if (!page || page === "landing") return <LandingPage onSignIn={() => setPage("login")} />;
-  if (page === "login") return <LoginPage onBack={() => setPage("landing")} onLoginSuccess={(user) => { setAuth(user); setPage("dashboard"); }} />;
+  if (page === "login") return <LoginPage onBack={() => setPage("landing")} onLoginSuccess={(user) => {
+    const authData = {
+      email: user.email,
+      role: user.role,
+      verified: true,
+      expires: Date.now() + (7 * 24 * 60 * 60 * 1000), // 7 days
+      tenant_id: user.email.split('@')[0]
+    };
+    setAuth(authData);
+    localStorage.setItem('vitalwaveone_admin', JSON.stringify(authData));
+    setPage("dashboard");
+  }} />;
 
   if (!auth) return <div style={{ padding: 20, textAlign: "center" }}>Loading...</div>;
 
