@@ -77,8 +77,8 @@ async function handleSendOtp(req, res) {
     return res.status(400).json({ error: 'Invalid email format' });
   }
 
-  // Rate limiting
-  const rateKey = `otp:${phone}`;
+  // Rate limiting (use email as key since it's required)
+  const rateKey = `otp:${email}`;
   const rateLimit = await checkRateLimit(rateKey, 3, 3600); // 3 attempts per hour
   if (!rateLimit.allowed) {
     return res.status(429).json({
