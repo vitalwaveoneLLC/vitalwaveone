@@ -93,9 +93,9 @@ export function OtpLogin({ onLoginSuccess, role = 'customer' }) {
 
       const data = await response.json();
 
-      setSuccess(`OTP sent to ${data.message.split(' ').slice(-1)[0]}`);
+      setSuccess(`OTP sent to ${data.maskedEmail || 'your email'}`);
       setStep('otp');
-      setOtpExpiry(Date.now() + data.expiresIn * 1000);
+      setOtpExpiry(Date.now() + (data.expiresIn || 300) * 1000);
       setOtp('');
 
     } catch (err) {

@@ -2,6 +2,16 @@
 // Routes: POST /api/auth?action=send-otp|verify-otp|find-driver|verify-admin
 // FIX #1: Email OTP authentication replaces WhatsApp
 import { checkRateLimit } from '../lib/middleware/rate-limiter.js';
+import nodemailer from 'nodemailer';
+
+// Create Gmail transporter for email OTP delivery
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 // In-memory OTP store (replace with database in production)
 const otpStore = new Map();
@@ -50,14 +60,14 @@ export default async function handler(req, res) {
 async function handleSendOtp(req, res) {
   const { phone, email } = req.body || {};
 
-  // Validate inputs
-  if (!phone || !email) {
-    return res.status(400).json({ error: 'Phone and email required' });
+  // Validate inputs - email required for email OTP
+  if (!email) {
+    return res.status(400).json({ error: 'Email required' });
   }
 
-  // Sanitize phone
-  const clean = String(phone).replace(/\D/g, '');
-  if (clean.length < 10) {
+  // Sanitize phone (optional for email OTP)
+  let clean = phone ? String(phone).replace(/\D/g, '') : 'unknown';
+  if (phone && clean.length < 10) {
     return res.status(400).json({ error: 'Invalid phone number' });
   }
 
@@ -94,12 +104,21 @@ async function handleSendOtp(req, res) {
     // Clean up expired OTPs periodically
     cleanupExpiredOtps();
 
-    // Send OTP via email (integrate with SendGrid, Mailgun, etc.)
-    // For now, we'll log it for development
-    console.log(`[OTP-EMAIL] Phone: ${clean}, Email: ${email}, OTP: ${otp}`);
-
-    // In production, call your email service:
-    // await sendEmailOtp(email, otp, phone);
+    // Send OTP via Gmail SMTP
+    try {
+      const emailContent = generateOtpEmail(otp, clean);
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: email,
+        subject: emailContent.subject,
+        html: emailContent.html,
+      });
+      console.log(`[OTP-EMAIL] Sent to ${email} for phone: ${clean}`);
+    } catch (emailError) {
+      console.error('[OTP-EMAIL-SEND-FAILED]', emailError.message);
+      // Still return success since OTP is stored server-side
+      // Email may be retried or user can request again
+    }
 
     return res.json({
       ok: true,
@@ -281,6 +300,77 @@ async function handleVerifyAdmin(req, res) {
     console.error('[verify-admin]', e.message);
     return res.status(500).json({ error: 'Admin verification failed' });
   }
+}
+
+/**
+ * Generate OTP email HTML and subject
+ */
+function generateOtpEmail(otp, phone) {
+  const expiryTime = 5; // minutes
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body { font-family: 'Inter', sans-serif; background: #f8f5f0; }
+          .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 16px; }
+          .header { text-align: center; margin-bottom: 32px; }
+          .header h1 { margin: 0; font-size: 28px; color: #0a1628; }
+          .header p { margin: 8px 0 0 0; color: #6b7280; font-size: 14px; }
+          .otp-box { background: #f9f8f5; padding: 24px; border-radius: 12px; text-align: center; margin: 24px 0; }
+          .otp-code { font-size: 36px; font-weight: 700; letter-spacing: 4px; color: #0a1628; font-family: 'Courier New', monospace; }
+          .info { background: #f0f9ff; padding: 16px; border-radius: 8px; margin: 24px 0; border-left: 4px solid #667eea; }
+          .info p { margin: 0; color: #334155; font-size: 14px; }
+          .footer { text-align: center; margin-top: 32px; color: #6b7280; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🛒 VitalWaveOne</h1>
+            <p>Your Login Verification Code</p>
+          </div>
+
+          <p style="color: #334155; font-size: 14px; margin-bottom: 16px;">
+            Hi there,
+          </p>
+
+          <p style="color: #334155; font-size: 14px; margin-bottom: 24px;">
+            We received a login request for your VitalWaveOne account associated with <strong>${phone}</strong>.
+          </p>
+
+          <p style="color: #334155; font-size: 14px; margin-bottom: 8px;">
+            Here's your verification code:
+          </p>
+
+          <div class="otp-box">
+            <div class="otp-code">${otp}</div>
+          </div>
+
+          <div class="info">
+            <p><strong>⏱️ This code expires in ${expiryTime} minutes</strong></p>
+            <p style="margin-top: 8px;">Do not share this code with anyone. VitalWaveOne staff will never ask for your code.</p>
+          </div>
+
+          <p style="color: #334155; font-size: 14px; margin-bottom: 8px;">
+            Didn't request this code? Your account may be compromised. <a href="https://vitalwaveone.com/help" style="color: #667eea; text-decoration: none;">Contact support immediately.</a>
+          </p>
+
+          <div class="footer">
+            <p>VitalWaveOne LLC | 317-509-6262 | support@vitalwaveone.com</p>
+            <p style="margin-top: 8px;">© ${new Date().getFullYear()} VitalWaveOne LLC. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `;
+
+  return {
+    subject: `Your VitalWaveOne Login Code: ${otp}`,
+    html: html.trim(),
+  };
 }
 
 /**
