@@ -150,14 +150,14 @@ export function OtpLogin({ onLoginSuccess, role = 'customer' }) {
         setIsNewUser(true);
       } else {
         // Existing user - login success
+        const userRole = role || 'customer';
         localStorage.setItem('auth_token', data.token);
         localStorage.setItem('user_email', data.email);
-        localStorage.setItem('user_role', role || 'customer');
+        localStorage.setItem('user_role', userRole);
         setSuccess('Login successful!');
-        const user = { email: data.email, phone: data.phone, role: role || 'customer', verified: true };
-        setTimeout(() => {
-          onLoginSuccess(user);
-        }, 500);
+        const user = { email: data.email, phone: data.phone, role: userRole, verified: true };
+        // Call immediately without setTimeout - no need to wait
+        onLoginSuccess(user);
       }
 
     } catch (err) {
@@ -230,15 +230,14 @@ export function OtpLogin({ onLoginSuccess, role = 'customer' }) {
 
       const data = await response.json();
 
+      const userRole = role || 'customer';
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user_email', data.email);
-      localStorage.setItem('user_role', role || 'customer');
+      localStorage.setItem('user_role', userRole);
       setSuccess('Account created successfully!');
 
-      const user = { email: data.email, phone: data.phone, role: role || 'customer', verified: true };
-      setTimeout(() => {
-        onLoginSuccess(user);
-      }, 500);
+      const user = { email: data.email, phone: data.phone, role: userRole, verified: true };
+      onLoginSuccess(user);
 
     } catch (err) {
       setError(err.message || 'Registration failed');
