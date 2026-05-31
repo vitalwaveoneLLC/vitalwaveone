@@ -92,10 +92,11 @@ async function handleSendOtp(req, res) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = Date.now() + OTP_EXPIRY;
 
-    // Store OTP with metadata
-    otpStore.set(clean, {
+    // Store OTP with metadata (use email as key for email OTP)
+    otpStore.set(email, {
       otp,
       email,
+      phone: clean,
       expiresAt,
       attempts: 0,
       lastAttempt: Date.now(),
@@ -137,15 +138,16 @@ async function handleSendOtp(req, res) {
  * Validates OTP and manages attempt tracking
  */
 async function handleVerifyOtp(req, res) {
-  const { phone, otp } = req.body || {};
+  const { phone, email, otp } = req.body || {};
 
-  if (!phone || !otp) {
-    return res.status(400).json({ error: 'Phone and OTP required' });
+  // OTP and email required (phone is optional for email OTP)
+  if (!otp || !email) {
+    return res.status(400).json({ error: 'Email and OTP required' });
   }
 
-  // Sanitize phone
-  const clean = String(phone).replace(/\D/g, '');
-  if (clean.length < 10) {
+  // Sanitize phone (optional for email OTP)
+  let clean = phone ? String(phone).replace(/\D/g, '') : 'unknown';
+  if (phone && clean.length < 10) {
     return res.status(400).json({ error: 'Invalid phone number' });
   }
 
@@ -155,7 +157,7 @@ async function handleVerifyOtp(req, res) {
   }
 
   try {
-    const session = otpStore.get(clean);
+    const session = otpStore.get(email);
 
     if (!session) {
       return res.status(401).json({ error: 'OTP not found. Request a new one.' });
@@ -163,13 +165,13 @@ async function handleVerifyOtp(req, res) {
 
     // Check expiry
     if (Date.now() > session.expiresAt) {
-      otpStore.delete(clean);
+      otpStore.delete(email);
       return res.status(401).json({ error: 'OTP expired. Request a new one.' });
     }
 
     // Check attempt limit
     if (session.attempts >= MAX_OTP_ATTEMPTS) {
-      otpStore.delete(clean);
+      otpStore.delete(email);
       return res.status(429).json({ error: 'Too many attempts. Request a new OTP.' });
     }
 
@@ -184,11 +186,11 @@ async function handleVerifyOtp(req, res) {
     }
 
     // OTP verified - cleanup
-    otpStore.delete(clean);
+    otpStore.delete(email);
 
     // Generate session token
     const token = Buffer.from(JSON.stringify({
-      phone: clean,
+      phone: session.phone || clean,
       email: session.email,
       verified: true,
       iat: Date.now(),
