@@ -920,7 +920,7 @@ function AppContent() {
   }, []);
 
   if (!page || page === "landing") return <LandingPage onSignIn={() => setPage("login")} />;
-  if (page === "login") return <LoginPage onBack={() => setPage("landing")} />;
+  if (page === "login") return <LoginPage onBack={() => setPage("landing")} onLoginSuccess={(user) => { setAuth(user); setPage("dashboard"); }} />;
 
   if (!auth) return <div style={{ padding: 20, textAlign: "center" }}>Loading...</div>;
 
