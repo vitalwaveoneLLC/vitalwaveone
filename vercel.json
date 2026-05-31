@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
+  "regions": ["iad1"],
+  "rewrites": [
+    {
+      "source": "/:path((?!api|_next|static|.*\\.).*)",
+      "destination": "/"
+    }
+  ]
+}
