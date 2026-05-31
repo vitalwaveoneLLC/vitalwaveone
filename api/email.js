@@ -1,5 +1,16 @@
 // api/email.js - Email service for OTP delivery
-// Sends OTP codes via email with proper formatting
+// Sends OTP codes via Gmail SMTP
+
+import nodemailer from 'nodemailer';
+
+// Create Gmail transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -50,24 +61,16 @@ async function handleSendOtp(req, res) {
   }
 
   try {
-    // In production, integrate with SendGrid, Mailgun, or AWS SES
-    // For now, we'll use a mock implementation that logs the OTP
-    // This ensures the API works without requiring external services in dev
-
     const emailContent = generateOtpEmail(otp, phone);
 
-    // TODO: Replace with your email service
-    // Example with SendGrid:
-    // const sgMail = require('@sendgrid/mail');
-    // sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-    // await sgMail.send({
-    //   to: email,
-    //   from: 'noreply@vitalwaveone.com',
-    //   subject: emailContent.subject,
-    //   html: emailContent.html,
-    // });
+    // Send email via Gmail SMTP
+    await transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: email,
+      subject: emailContent.subject,
+      html: emailContent.html,
+    });
 
-    // Log for development (in production, remove or use secure logging)
     console.log(`[EMAIL] OTP sent to ${email}:`, {
       phone,
       otp,
@@ -81,7 +84,7 @@ async function handleSendOtp(req, res) {
     });
   } catch (e) {
     console.error('[send-otp]', e.message);
-    return res.status(500).json({ error: 'Failed to send email' });
+    return res.status(500).json({ error: 'Failed to send email: ' + e.message });
   }
 }
 
@@ -98,7 +101,14 @@ async function handleSendInvoice(req, res) {
   try {
     const emailContent = generateInvoiceEmail(orderId, customerName, total);
 
-    // TODO: Integrate with email service
+    // Send email via Gmail SMTP
+    await transporter.sendMail({
+      from: process.env.GMAIL_USER,
+      to: email,
+      subject: emailContent.subject,
+      html: emailContent.html,
+    });
+
     console.log(`[EMAIL] Invoice sent to ${email}:`, { orderId });
 
     return res.json({
@@ -108,7 +118,7 @@ async function handleSendInvoice(req, res) {
     });
   } catch (e) {
     console.error('[send-invoice]', e.message);
-    return res.status(500).json({ error: 'Failed to send invoice' });
+    return res.status(500).json({ error: 'Failed to send invoice: ' + e.message });
   }
 }
 
