@@ -930,7 +930,7 @@ function AppContent() {
     };
     setAuth(authData);
     localStorage.setItem('vitalwaveone_admin', JSON.stringify(authData));
-    setPage("dashboard");
+    setPage("app");
   }} />;
 
   if (!auth) return <div style={{ padding: 20, textAlign: "center" }}>Loading...</div>;
