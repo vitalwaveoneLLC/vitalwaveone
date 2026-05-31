@@ -102,6 +102,8 @@ async function handleSendOtp(req, res) {
       lastAttempt: Date.now(),
     });
 
+    console.log(`[send-otp] Stored OTP for ${email}: ${otp}, Store size: ${otpStore.size}`);
+
     // Clean up expired OTPs periodically
     cleanupExpiredOtps();
 
@@ -159,6 +161,9 @@ async function handleVerifyOtp(req, res) {
   try {
     const session = otpStore.get(email);
 
+    // Debug logging
+    console.log(`[verify-otp] Email: ${email}, Found: ${!!session}, Store size: ${otpStore.size}, Keys: ${Array.from(otpStore.keys()).join(', ')}`);
+
     if (!session) {
       return res.status(401).json({ error: 'OTP not found. Request a new one.' });
     }
@@ -175,10 +180,12 @@ async function handleVerifyOtp(req, res) {
       return res.status(429).json({ error: 'Too many attempts. Request a new OTP.' });
     }
 
-    // Verify OTP
-    if (session.otp !== otp) {
+    // Verify OTP (allow 000000 for testing in development)
+    const isTestOtp = otp === '000000' && process.env.NODE_ENV !== 'production';
+    if (session.otp !== otp && !isTestOtp) {
       session.attempts += 1;
       session.lastAttempt = Date.now();
+      console.log(`[verify-otp] Invalid OTP. Expected: ${session.otp}, Got: ${otp}`);
       return res.status(401).json({
         error: 'Invalid OTP',
         attemptsRemaining: MAX_OTP_ATTEMPTS - session.attempts,
