@@ -1,0 +1,167 @@
+{
+  "info": {
+    "name": "VitalWave API",
+    "description": "VitalWave Wholesale Platform API Collection",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:5000/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "company_id",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/auth/register", "host": ["{{base_url}}"], "path": ["auth", "register"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@demo.com\",\n  \"password\": \"Password123!\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"companyName\": \"Demo Company\",\n  \"subscriptionTier\": \"premium\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@demo.com\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {"raw": "{{base_url}}/auth/me", "host": ["{{base_url}}"], "path": ["auth", "me"]}
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "List All",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {"raw": "{{base_url}}/inventory", "host": ["{{base_url}}"], "path": ["inventory"]}
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}, {"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/inventory", "host": ["{{base_url}}"], "path": ["inventory"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sku\": \"SKU-001\",\n  \"product_name\": \"Product A\",\n  \"description\": \"Description\",\n  \"category\": \"Category 1\",\n  \"unit_price\": 29.99\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "List All",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {"raw": "{{base_url}}/invoices", "host": ["{{base_url}}"], "path": ["invoices"]}
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}, {"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/invoices", "host": ["{{base_url}}"], "path": ["invoices"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_number\": \"INV-001\",\n  \"customer_id\": \"<customer_id>\",\n  \"total_amount\": 299.99,\n  \"items\": []\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "List All",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {"raw": "{{base_url}}/customers", "host": ["{{base_url}}"], "path": ["customers"]}
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}, {"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/customers", "host": ["{{base_url}}"], "path": ["customers"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"Customer Company\",\n  \"email\": \"customer@company.com\",\n  \"phone\": \"555-1234\",\n  \"license_number\": \"LIC-123\",\n  \"registration_number\": \"REG-123\",\n  \"address_street\": \"123 Main St\",\n  \"address_building\": \"Suite 100\",\n  \"address_zip\": \"12345\",\n  \"address_state\": \"CA\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Trucks",
+      "item": [
+        {
+          "name": "List All",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}],
+            "url": {"raw": "{{base_url}}/trucks", "host": ["{{base_url}}"], "path": ["trucks"]}
+          }
+        },
+        {
+          "name": "Create",
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{token}}"}, {"key": "Content-Type", "value": "application/json"}],
+            "url": {"raw": "{{base_url}}/trucks", "host": ["{{base_url}}"], "path": ["trucks"]},
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"truck_number\": \"TRUCK-001\",\n  \"driver_id\": null,\n  \"capacity_units\": 500\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": {"raw": "{{base_url}}/health", "host": ["{{base_url}}"], "path": ["health"]}
+      }
+    }
+  ]
+}

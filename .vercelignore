@@ -1,0 +1,12 @@
+# Exclude backend files from frontend deployment
+middleware.js
+db.js
+schema.sql
+package-backend.json
+lib/
+migrations/
+.env.example
+.env.local
+node_modules/
+.git/
+.gitignore

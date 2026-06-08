@@ -1,0 +1,36 @@
+========================================
+VERCEL BACKEND ENVIRONMENT VARIABLES
+========================================
+
+Add these to vitalwaveone-api project:
+
+1. DATABASE_URL
+   postgresql://neondb_owner:npg_ka6rERMAHi7X@ep-polished-scene-apmn4sw5-pooler.c-7.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+2. JWT_SECRET
+   your_jwt_secret_key_minimum_32_characters_long_here_12345
+
+3. STRIPE_SECRET_KEY
+   sk_test_1234567890abcdefghijklmnop
+
+4. NODE_ENV
+   production
+
+5. VITE_API_BASE_URL
+   https://vitalwaveone-api.vercel.app/api
+
+========================================
+HOW TO ADD IN VERCEL:
+========================================
+
+1. In Vercel project settings
+2. Go to "Environment Variables" section
+3. Click "Add More"
+4. For each variable:
+   - Key: (the variable name)
+   - Value: (the value above)
+   - Make sure "Production and Preview" is selected
+5. Click Add
+6. After adding all, click Deploy
+
+========================================

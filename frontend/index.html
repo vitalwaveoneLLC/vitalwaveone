@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <!-- ── PWA ESSENTIALS ── -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#000000" />
+
+    <!-- ── VIEWPORT: critical for mobile ── -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+
+    <!-- ── iOS PWA SUPPORT ── -->
+    <!-- Makes it feel native when added to iPhone home screen -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="VitalWave" />
+
+    <!-- iOS icons (Safari uses these, not manifest) -->
+    <link rel="apple-touch-icon" sizes="72x72"   href="/icons/icon-72.png" />
+    <link rel="apple-touch-icon" sizes="96x96"   href="/icons/icon-96.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
+
+    <!-- ── ANDROID / GENERAL ── -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="shortcut icon" href="/icons/icon-192.png" />
+
+    <!-- ── SEO & SOCIAL ── -->
+    <meta name="description" content="VitalWaveOne LLC — Wholesale Distribution Management for truck route sales" />
+    <meta name="application-name" content="VitalWaveOne LLC" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- ── SPLASH SCREEN COLOR (matches app background) ── -->
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #ffffff;
+        /* Prevent text size adjustment on orientation change */
+        -webkit-text-size-adjust: 100%;
+        /* Allow scrolling */
+        overscroll-behavior-y: auto;
+        width: 100%;
+        min-height: 100%;
+        overflow-x: hidden;
+      }
+
+      /* Full height on mobile browsers */
+      #root {
+        min-height: 100vh;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* iOS 15+ support */
+      @supports (padding: max(0px)) {
+        body {
+          padding-left: max(12px, env(safe-area-inset-left));
+          padding-right: max(12px, env(safe-area-inset-right));
+        }
+      }
+    </style>
+
+    <title>VitalWaveOne LLC</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+
+
