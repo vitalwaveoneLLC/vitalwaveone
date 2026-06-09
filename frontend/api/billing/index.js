@@ -3,7 +3,7 @@
  * Routes: /api/billing/checkout, /api/billing/portal, /api/billing/webhook
  */
 
-import { query, queryOne, getTenant } from '../../../lib/db.js';
+import { query, queryOne, getTenant } from './lib/db.js';
 
 const STRIPE_PRICES = {
   starter: process.env.STRIPE_PRICE_STARTER,

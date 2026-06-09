@@ -2,7 +2,7 @@
  * File Upload to Cloudflare R2
  */
 
-import { getTenant } from '../../../lib/db.js';
+import { getTenant } from './lib/db.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');

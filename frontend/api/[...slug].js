@@ -3,13 +3,13 @@
  * Handles: /api/inventory, /api/invoices, /api/trucks, /api/users, /api/email, /api/payment, /api/ordering-link, /api/data/*, /api/functions/*, /api/rpc/*
  */
 
-import { query, queryOne } from '../../lib/db.js';
+import { query, queryOne } from './lib/db.js';
 
 // Import resource handlers
-import * as inventoryHandlers from '../../lib/handlers/inventory.js';
-import * as invoicesHandlers from '../../lib/handlers/invoices.js';
-import * as trucksHandlers from '../../lib/handlers/trucks.js';
-import * as usersHandlers from '../../lib/handlers/users.js';
+import * as inventoryHandlers from './lib/handlers/inventory.js';
+import * as invoicesHandlers from './lib/handlers/invoices.js';
+import * as trucksHandlers from './lib/handlers/trucks.js';
+import * as usersHandlers from './lib/handlers/users.js';
 
 const resourceHandlers = {
   inventory: inventoryHandlers,
