@@ -59,15 +59,15 @@ export default async function handler(req, res) {
 
     switch (action) {
       case 'login':
-        return handleLogin(req, res, body);
+        return await handleLogin(req, res, body);
       case 'register':
-        return handleRegister(req, res, body);
+        return await handleRegister(req, res, body);
       case 'verify':
-        return handleVerify(req, res, body);
+        return await handleVerify(req, res, body);
       case 'otp-send':
-        return handleOTPSend(req, res, body);
+        return await handleOTPSend(req, res, body);
       case 'otp-verify':
-        return handleOTPVerify(req, res, body);
+        return await handleOTPVerify(req, res, body);
       default:
         return res.status(404).json({ error: 'Action not found' });
     }
