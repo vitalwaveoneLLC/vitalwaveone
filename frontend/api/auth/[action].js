@@ -78,20 +78,25 @@ export default async function handler(req, res) {
 }
 
 async function handleLogin(req, res, body) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { email, password, role = 'admin' } = body;
-  if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
+  try {
+    if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+    const { email, password, role = 'admin' } = body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password required' });
 
-  // Demo credentials
-  if (email === 'admin@demo.com' && password === 'Password123!') {
-    const token = generateJWT({ email, role, companyId: 'demo-company' });
-    return res.json({
-      token,
-      user: { email, role, companyId: 'demo-company', companyName: 'Demo Company' }
-    });
+    // Demo credentials
+    if (email === 'admin@demo.com' && password === 'Password123!') {
+      const token = generateJWT({ email, role, companyId: 'demo-company' });
+      return res.json({
+        token,
+        user: { email, role, companyId: 'demo-company', companyName: 'Demo Company' }
+      });
+    }
+
+    return res.status(401).json({ error: 'Invalid email or password' });
+  } catch (err) {
+    console.error('Login error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Login failed: ' + err.message });
   }
-
-  return res.status(401).json({ error: 'Invalid email or password' });
 }
 
 async function handleRegister(req, res, body) {
