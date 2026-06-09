@@ -4,7 +4,6 @@
  */
 
 import crypto from 'crypto';
-import { query, queryOne } from '../lib/db.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default-secret-change-in-production';
 const TOKEN_EXPIRY = 24 * 60 * 60;
